@@ -44,6 +44,7 @@ int main(int argc, char* argv[])
 	float playerX = 100;
 	const float floor = state.logH;
 	uint64_t prevTime = SDL_GetTicks();
+	bool flipHorizontal = false;
 
 
 
@@ -83,11 +84,13 @@ int main(int argc, char* argv[])
 		float moveamount = 0;
 		if (keys[SDL_SCANCODE_A]) 
 		{
+			flipHorizontal = true;
 			moveamount += -75.0f;
 		}
 
 		if (keys[SDL_SCANCODE_D])
 		{
+			flipHorizontal = false;
 			moveamount += 75.0f;
 		}
 
@@ -127,7 +130,7 @@ int main(int argc, char* argv[])
 			.h = spritesize
 		};
 
-		SDL_RenderTexture(state.renderer, idletex, &src, &dst);
+		SDL_RenderTextureRotated(state.renderer, idletex, &src, &dst,0,nullptr,flipHorizontal ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 
 
 
