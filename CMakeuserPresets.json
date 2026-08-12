@@ -1,0 +1,14 @@
+﻿{
+    "version": 3,
+    "configurePresets": [
+
+      {
+        "name": "x64-debug-user",
+        "displayName": "x64 Debug (USER)",
+        "inherits": "x64-debug",
+        "cacheVariables": {
+          "CMAKE_PREFIX_PATH": "E:\\AyushS\\SDL3-3.4.14;E:\\AyushS\\SDL3_image-3.4.4"
+        }
+      }
+    ]
+}

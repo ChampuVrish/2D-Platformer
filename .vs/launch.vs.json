@@ -1,0 +1,16 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "2D.exe (2D\\Debug\\2D.exe)",
+      "name": "2D.exe (2D\\Debug\\2D.exe)",
+      "env": {
+        "PATH": "E:\\AyushS\\SDL3-3.4.14\\lib\\x64;%PATH%"
+      },
+      "currentDir": "E:\\AyushS\\2DGameDev\\2D"
+    }
+  ]
+}
