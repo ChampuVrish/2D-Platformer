@@ -38,14 +38,15 @@ struct GameState
 	}
 };
 
-//Game Assets
+//Game Assets And Animation Data
 struct Resources
 {
 	const int ANIM_PLAYER_IDLE = 0;
+	const int ANIM_PLAYER_RUNNING = 1;
 	std::vector<Animation> playerAnims;
 
 	std::vector<SDL_Texture *> textures;
-	SDL_Texture* idletex;
+	SDL_Texture* idletex,*runtex;
 
 	SDL_Texture* loadTextures(SDL_Renderer* renderer, const std::string& filepath)
 	{
@@ -61,9 +62,14 @@ struct Resources
 	void load(SDLState &state)
 	{
 		playerAnims.resize(5);
-		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.8f);
 
+		//IDLE ANIMATION
+		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 1.0f);
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
+
+		//RUNNING ANIMATION
+		playerAnims[ANIM_PLAYER_RUNNING] = Animation(8, 0.8f);
+		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\run.png");
 	}
 
 	void unload()
@@ -317,6 +323,8 @@ void update(const SDLState& state, GameState& gs,Resources &res, GameObject& obj
 				if (currdirection)
 				{
 					obj.data.player.state = PlayerState::running;
+					obj.texture = res.runtex;
+					obj.currentAnimation = res.ANIM_PLAYER_RUNNING;
 				}
 				else
 				{
@@ -342,6 +350,8 @@ void update(const SDLState& state, GameState& gs,Resources &res, GameObject& obj
 				if (!currdirection)
 				{
 					obj.data.player.state = PlayerState::idle;
+					obj.texture = res.idletex;
+					obj.currentAnimation = res.ANIM_PLAYER_IDLE;
 				}
 				break;
 			}
