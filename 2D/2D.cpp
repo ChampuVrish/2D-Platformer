@@ -7,14 +7,20 @@
 #include "gameObject.h"
 #include <array>
 
-
 using namespace std;
+
 
 struct SDLState
 {
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	int width, height, logW, logH;
+	const bool* keys;
+
+	SDLState() : keys(SDL_GetKeyboardState(nullptr))
+	{
+
+	}
 };
 
 
@@ -55,7 +61,7 @@ struct Resources
 	void load(SDLState &state)
 	{
 		playerAnims.resize(5);
-		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 0.7f);
+		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.8f);
 
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
 	}
@@ -74,6 +80,7 @@ struct Resources
 bool initialize(SDLState& state);
 void cleanup(SDLState& state);
 void drawObject(const SDLState& state, GameState& gs,GameObject& obj, float deltaTime);
+void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime);
 
 
 
@@ -99,9 +106,13 @@ int main(int argc, char* argv[])
 
 	//Setup Game Data
 	GameState gs;
+
 	//Our Player
 	GameObject player;
 	player.type = ObjectType::player;
+	player.data.player.state = PlayerState::idle;
+	player.acceleration = glm::vec2(120.0f, 0.0f);
+	player.MaxSpeedX = 80.0f;
 	player.texture = res.idletex;
 	player.animations = res.playerAnims;
 	player.currentAnimation = res.ANIM_PLAYER_IDLE;
@@ -109,7 +120,6 @@ int main(int argc, char* argv[])
 
 
 
-	const bool* keys = SDL_GetKeyboardState(nullptr);
 	uint64_t prevTime = SDL_GetTicks();
 
 
@@ -149,6 +159,8 @@ int main(int argc, char* argv[])
 		{
 			for (GameObject &obj : layer)
 			{
+				update(state, gs, res, obj, deltaTime);
+				//Update Animation
 				if (obj.currentAnimation != -1)
 				{
 					obj.animations[obj.currentAnimation].step(deltaTime);
@@ -272,4 +284,79 @@ void drawObject(const SDLState &state,GameState &gs,GameObject &obj,float deltaT
 
 	SDL_FlipMode flipmode = obj.direction == -1 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
 	SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
+}
+
+void update(const SDLState& state, GameState& gs,Resources &res, GameObject& obj, float deltaTime)
+{
+	if(obj.type == ObjectType::player)
+	{
+		// Update player-specific logic......For example, handle input, movement, etc.
+		float currdirection = 0;
+
+		//Left Movement
+		if(state.keys[SDL_SCANCODE_A])
+		{
+			currdirection += -1;
+		}
+
+		//Right Movement
+		if (state.keys[SDL_SCANCODE_D])
+		{
+			currdirection += 1;
+		}
+
+		if (currdirection != 0)
+		{
+			obj.direction = currdirection;
+		}
+
+		switch (obj.data.player.state)
+		{
+			case PlayerState::idle:
+			{
+				if (currdirection)
+				{
+					obj.data.player.state = PlayerState::running;
+				}
+				else
+				{
+					//Deaccelerate Velocity when Idle
+					if (obj.velocity.x)
+					{
+						const float factor = obj.velocity.x > 0 ? -1.5f : 1.5f;
+						float amount = factor * obj.acceleration.x * deltaTime;
+						if (std::abs(obj.velocity.x) < std::abs(amount))
+						{
+							obj.velocity.x = 0;
+						}
+						else
+						{
+							obj.velocity.x += amount;
+						}
+					}
+				}
+				break;
+			}
+			case PlayerState::running:
+			{
+				if (!currdirection)
+				{
+					obj.data.player.state = PlayerState::idle;
+				}
+				break;
+			}
+		}
+
+		//Add Acceleration Based on Direction
+		obj.velocity += currdirection * obj.acceleration * deltaTime;
+
+		//Limiting The speed of the player to MaxSpeedX
+		if (std::abs(obj.velocity.x) > obj.MaxSpeedX)
+		{
+			obj.velocity.x = obj.MaxSpeedX * currdirection;
+		}
+
+		//Add velocity to Position
+		obj.position += obj.velocity * deltaTime;
+	}
 }
