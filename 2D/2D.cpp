@@ -1,8 +1,12 @@
-﻿// 2D.cpp : Defines the entry point for the application.
-//
-#include <SDL3/SDL.h>
+﻿#include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
+#include <vector>
+#include <string>
+#include <glm/glm.hpp>
+#include "gameObject.h"
+#include <array>
+
 
 using namespace std;
 
@@ -14,8 +18,63 @@ struct SDLState
 };
 
 
+const size_t LAYER_IDX_LEVEL = 0;
+const size_t LAYER_IDX_CHARACTERS = 1;
+
+
+struct GameState
+{
+	std::array<std::vector<GameObject>, 2> layers;
+	int playerIdx;
+
+	GameState() {
+		playerIdx = 0; 
+	}
+};
+
+//Game Assets
+struct Resources
+{
+	const int ANIM_PLAYER_IDLE = 0;
+	std::vector<Animation> playerAnims;
+
+	std::vector<SDL_Texture *> textures;
+	SDL_Texture* idletex;
+
+	SDL_Texture* loadTextures(SDL_Renderer* renderer, const std::string& filepath)
+	{
+		//Load Textures
+
+		SDL_Texture* tex = IMG_LoadTexture(renderer, filepath.c_str());
+		SDL_SetTextureScaleMode(tex, SDL_ScaleMode::SDL_SCALEMODE_NEAREST);
+		textures.push_back(tex);
+		return tex;
+
+	}
+
+	void load(SDLState &state)
+	{
+		playerAnims.resize(5);
+		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 0.7f);
+
+		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
+	}
+
+	void unload()
+	{
+		for (SDL_Texture* tex : textures)
+		{
+			SDL_DestroyTexture(tex);
+		}
+	}
+};
+
+
+
 bool initialize(SDLState& state);
 void cleanup(SDLState& state);
+void drawObject(const SDLState& state, GameState& gs,GameObject& obj, float deltaTime);
+
 
 
 int main(int argc, char* argv[])
@@ -31,20 +90,27 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+
 	//Load Game Assets
-	SDL_Texture* idletex = IMG_LoadTexture(state.renderer, "Data/Idle.png");
-	SDL_SetTextureScaleMode(idletex, SDL_ScaleMode::SDL_SCALEMODE_NEAREST);
+
+	Resources res;
+	res.load(state);
+
+
+	//Setup Game Data
+	GameState gs;
+	//Our Player
+	GameObject player;
+	player.type = ObjectType::player;
+	player.texture = res.idletex;
+	player.animations = res.playerAnims;
+	player.currentAnimation = res.ANIM_PLAYER_IDLE;
+	gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
 
 
 
-
-
-	//Setup Game State
 	const bool* keys = SDL_GetKeyboardState(nullptr);
-	float playerX = 100;
-	const float floor = state.logH;
 	uint64_t prevTime = SDL_GetTicks();
-	bool flipHorizontal = false;
 
 
 
@@ -78,30 +144,24 @@ int main(int argc, char* argv[])
 
 		}
 
-
-		//Handle Movement Input
-
-		float moveamount = 0;
-		if (keys[SDL_SCANCODE_A]) 
+		//update all Objects
+		for (auto &layer : gs.layers)
 		{
-			flipHorizontal = true;
-			moveamount += -75.0f;
+			for (GameObject &obj : layer)
+			{
+				if (obj.currentAnimation != -1)
+				{
+					obj.animations[obj.currentAnimation].step(deltaTime);
+				}
+			}
 		}
-
-		if (keys[SDL_SCANCODE_D])
-		{
-			flipHorizontal = false;
-			moveamount += 75.0f;
-		}
-
-		playerX += moveamount * deltaTime; // Apply deltaTime for consistent movement speed
 
 		// Perform Drawing Operations
 
 		SDL_SetRenderDrawColor(state.renderer, 0, 0, 0, 255);
 		SDL_RenderClear(state.renderer);
 
-		SDL_SetRenderDrawColor(state.renderer, 20, 10, 30, 255);
+		SDL_SetRenderDrawColor(state.renderer, 50, 50, 50, 255);
 		
 		SDL_FRect gameArea{
 		0.0f,
@@ -113,25 +173,14 @@ int main(int argc, char* argv[])
 
 		SDL_RenderFillRect(state.renderer, &gameArea);
 
-
-		const float spritesize = 32;
-
-		SDL_FRect src{
-			.x = 0,
-			.y = 0,
-			.w = 150,
-			.h = 150
-		};
-
-		SDL_FRect dst{
-			.x = playerX,
-			.y = floor - spritesize,
-			.w = spritesize,
-			.h = spritesize
-		};
-
-		SDL_RenderTextureRotated(state.renderer, idletex, &src, &dst,0,nullptr,flipHorizontal ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
-
+		//Draw all Objects
+		for (auto &layer : gs.layers)
+		{
+			for (GameObject &obj : layer)
+			{
+				drawObject(state, gs, obj, deltaTime);
+			}
+		}
 
 
 		//Swap the Buffers and Present the Rendered Frame
@@ -139,7 +188,10 @@ int main(int argc, char* argv[])
 		prevTime = nowTime;
 
 	}
-	SDL_DestroyTexture(idletex);
+
+	//Unloading
+
+	res.unload();
 	cleanup(state);
 	return 0;
 }
@@ -192,4 +244,32 @@ void cleanup(SDLState &state)
 SDL_DestroyRenderer(state.renderer);
 SDL_DestroyWindow(state.window);
 SDL_Quit();
+}
+
+
+void drawObject(const SDLState &state,GameState &gs,GameObject &obj,float deltaTime)
+{
+	const float frameWidth = 147;
+	const float frameHeight = 150;
+
+	const float spriteSize = 32;
+	float srcX = obj.currentAnimation != -1
+		? obj.animations[obj.currentAnimation].currentframe() * frameWidth : 0.0f;
+
+	SDL_FRect src{
+		.x = srcX,
+		.y = 0,
+		.w = frameWidth,
+		.h = frameHeight
+	};
+
+	SDL_FRect dst{
+		.x = obj.position.x,
+		.y = obj.position.y,
+		.w = spriteSize,
+		.h = spriteSize
+	};
+
+	SDL_FlipMode flipmode = obj.direction == -1 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+	SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
 }
