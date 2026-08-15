@@ -26,6 +26,9 @@ struct SDLState
 
 const size_t LAYER_IDX_LEVEL = 0;
 const size_t LAYER_IDX_CHARACTERS = 1;
+const int MAP_ROWS = 5;
+const int MAP_COLS = 50;
+const int TILE_SIZE = 32;
 
 
 struct GameState
@@ -34,7 +37,7 @@ struct GameState
 	int playerIdx;
 
 	GameState() {
-		playerIdx = 0; 
+		playerIdx = 0;
 	}
 };
 
@@ -45,13 +48,14 @@ struct Resources
 	const int ANIM_PLAYER_RUNNING = 1;
 	std::vector<Animation> playerAnims;
 
-	std::vector<SDL_Texture *> textures;
-	SDL_Texture* idletex,*runtex;
+	//TEXTURE MAPPING
+
+	std::vector<SDL_Texture*> textures;
+	SDL_Texture* idletex, * runtex, * grasstex, * bricktex, * metaltex, * groundtex;
 
 	SDL_Texture* loadTextures(SDL_Renderer* renderer, const std::string& filepath)
 	{
 		//Load Textures
-
 		SDL_Texture* tex = IMG_LoadTexture(renderer, filepath.c_str());
 		SDL_SetTextureScaleMode(tex, SDL_ScaleMode::SDL_SCALEMODE_NEAREST);
 		textures.push_back(tex);
@@ -59,17 +63,25 @@ struct Resources
 
 	}
 
-	void load(SDLState &state)
+	void load(SDLState& state)
 	{
 		playerAnims.resize(5);
 
 		//IDLE ANIMATION
-		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 1.0f);
+		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 4.0f);
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
 
 		//RUNNING ANIMATION
-		playerAnims[ANIM_PLAYER_RUNNING] = Animation(8, 0.8f);
-		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\run.png");
+		playerAnims[ANIM_PLAYER_RUNNING] = Animation(4, 0.5f);
+
+		//Level Textures
+		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\RUN.png");
+		grasstex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\GRASS.png");
+		bricktex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\BRICK.png");
+		metaltex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\METAL.png");
+		groundtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\GROUND.png");
+
+
 	}
 
 	void unload()
@@ -85,8 +97,9 @@ struct Resources
 
 bool initialize(SDLState& state);
 void cleanup(SDLState& state);
-void drawObject(const SDLState& state, GameState& gs,GameObject& obj, float deltaTime);
+void drawObject(const SDLState& state, GameState& gs, GameObject& obj, float deltaTime);
 void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime);
+void createTiles(const SDLState& state, GameState& gs, const Resources& res);
 
 
 
@@ -112,20 +125,7 @@ int main(int argc, char* argv[])
 
 	//Setup Game Data
 	GameState gs;
-
-	//Our Player
-	GameObject player;
-	player.type = ObjectType::player;
-	player.data.player.state = PlayerState::idle;
-	player.acceleration = glm::vec2(120.0f, 0.0f);
-	player.MaxSpeedX = 80.0f;
-	player.texture = res.idletex;
-	player.animations = res.playerAnims;
-	player.currentAnimation = res.ANIM_PLAYER_IDLE;
-	gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
-
-
-
+	createTiles(state, gs, res);
 	uint64_t prevTime = SDL_GetTicks();
 
 
@@ -145,25 +145,25 @@ int main(int argc, char* argv[])
 			switch (event.type)
 			{
 			case SDL_EVENT_QUIT:
-				{
+			{
 				running = false;
 				break;
-				}
+			}
 
-				case SDL_EVENT_WINDOW_RESIZED:
-				{
-					state.width = event.window.data1;
-					state.height = event.window.data2;
-					break;
-				}
+			case SDL_EVENT_WINDOW_RESIZED:
+			{
+				state.width = event.window.data1;
+				state.height = event.window.data2;
+				break;
+			}
 			}
 
 		}
 
 		//update all Objects
-		for (auto &layer : gs.layers)
+		for (auto& layer : gs.layers)
 		{
-			for (GameObject &obj : layer)
+			for (GameObject& obj : layer)
 			{
 				update(state, gs, res, obj, deltaTime);
 				//Update Animation
@@ -179,8 +179,8 @@ int main(int argc, char* argv[])
 		SDL_SetRenderDrawColor(state.renderer, 0, 0, 0, 255);
 		SDL_RenderClear(state.renderer);
 
-		SDL_SetRenderDrawColor(state.renderer, 50, 50, 50, 255);
-		
+		SDL_SetRenderDrawColor(state.renderer, 10, 20, 40, 255);
+
 		SDL_FRect gameArea{
 		0.0f,
 		0.0f,
@@ -192,9 +192,9 @@ int main(int argc, char* argv[])
 		SDL_RenderFillRect(state.renderer, &gameArea);
 
 		//Draw all Objects
-		for (auto &layer : gs.layers)
+		for (auto& layer : gs.layers)
 		{
-			for (GameObject &obj : layer)
+			for (GameObject& obj : layer)
 			{
 				drawObject(state, gs, obj, deltaTime);
 			}
@@ -217,14 +217,11 @@ int main(int argc, char* argv[])
 
 
 
-
-
-
 //Window Check INITIALIZE
-bool initialize(SDLState &state)
+bool initialize(SDLState& state)
 {
 	bool initsuccess = true;
-	if (!SDL_Init(SDL_INIT_VIDEO) < 0)
+	if (!SDL_Init(SDL_INIT_VIDEO))
 	{
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", "Failed to initialize SDL", nullptr);
 		initsuccess = false;
@@ -257,18 +254,18 @@ bool initialize(SDLState &state)
 	return initsuccess;
 }
 
-void cleanup(SDLState &state)
+void cleanup(SDLState& state)
 {
-SDL_DestroyRenderer(state.renderer);
-SDL_DestroyWindow(state.window);
-SDL_Quit();
+	SDL_DestroyRenderer(state.renderer);
+	SDL_DestroyWindow(state.window);
+	SDL_Quit();
 }
 
 
-void drawObject(const SDLState &state,GameState &gs,GameObject &obj,float deltaTime)
+void drawObject(const SDLState& state, GameState& gs, GameObject& obj, float deltaTime)
 {
 	const float frameWidth = 147;
-	const float frameHeight = 150;
+	const float frameHeight = 145;
 
 	const float spriteSize = 32;
 	float srcX = obj.currentAnimation != -1
@@ -292,15 +289,15 @@ void drawObject(const SDLState &state,GameState &gs,GameObject &obj,float deltaT
 	SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
 }
 
-void update(const SDLState& state, GameState& gs,Resources &res, GameObject& obj, float deltaTime)
+void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime)
 {
-	if(obj.type == ObjectType::player)
+	if (obj.type == ObjectType::player)
 	{
 		// Update player-specific logic......For example, handle input, movement, etc.
 		float currdirection = 0;
 
 		//Left Movement
-		if(state.keys[SDL_SCANCODE_A])
+		if (state.keys[SDL_SCANCODE_A])
 		{
 			currdirection += -1;
 		}
@@ -318,43 +315,43 @@ void update(const SDLState& state, GameState& gs,Resources &res, GameObject& obj
 
 		switch (obj.data.player.state)
 		{
-			case PlayerState::idle:
+		case PlayerState::idle:
+		{
+			if (currdirection)
 			{
-				if (currdirection)
+				obj.data.player.state = PlayerState::running;
+				obj.texture = res.runtex;
+				obj.currentAnimation = res.ANIM_PLAYER_RUNNING;
+			}
+			else
+			{
+				//Deaccelerate Velocity when Idle
+				if (obj.velocity.x)
 				{
-					obj.data.player.state = PlayerState::running;
-					obj.texture = res.runtex;
-					obj.currentAnimation = res.ANIM_PLAYER_RUNNING;
-				}
-				else
-				{
-					//Deaccelerate Velocity when Idle
-					if (obj.velocity.x)
+					const float factor = obj.velocity.x > 0 ? -1.5f : 1.5f;
+					float amount = factor * obj.acceleration.x * deltaTime;
+					if (std::abs(obj.velocity.x) < std::abs(amount))
 					{
-						const float factor = obj.velocity.x > 0 ? -1.5f : 1.5f;
-						float amount = factor * obj.acceleration.x * deltaTime;
-						if (std::abs(obj.velocity.x) < std::abs(amount))
-						{
-							obj.velocity.x = 0;
-						}
-						else
-						{
-							obj.velocity.x += amount;
-						}
+						obj.velocity.x = 0;
+					}
+					else
+					{
+						obj.velocity.x += amount;
 					}
 				}
-				break;
 			}
-			case PlayerState::running:
+			break;
+		}
+		case PlayerState::running:
+		{
+			if (!currdirection)
 			{
-				if (!currdirection)
-				{
-					obj.data.player.state = PlayerState::idle;
-					obj.texture = res.idletex;
-					obj.currentAnimation = res.ANIM_PLAYER_IDLE;
-				}
-				break;
+				obj.data.player.state = PlayerState::idle;
+				obj.texture = res.idletex;
+				obj.currentAnimation = res.ANIM_PLAYER_IDLE;
 			}
+			break;
+		}
 		}
 
 		//Add Acceleration Based on Direction
@@ -368,5 +365,92 @@ void update(const SDLState& state, GameState& gs,Resources &res, GameObject& obj
 
 		//Add velocity to Position
 		obj.position += obj.velocity * deltaTime;
+	}
+}
+
+void createTiles(const SDLState& state, GameState& gs, const Resources& res)
+{
+	/*
+
+		1 - Ground
+		2 - Metal
+		3 - Brick
+		4 - Player
+		5 - Grass
+		6 - Enemy
+
+	*/
+
+	short map[MAP_ROWS][MAP_COLS] = {
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,4,0,0,0,0,3,3,3,3,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,1,1,1,1,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	};
+
+	const auto createObject = [&state](int r, int c, SDL_Texture* tex, ObjectType type)
+		{
+			GameObject o;
+			o.type = type;
+			o.position = glm::vec2(
+				c * TILE_SIZE,
+				state.logH - (MAP_ROWS - r) * TILE_SIZE
+			);
+			o.texture = tex;
+			return o;
+		};
+
+	for (int r = 0;r < MAP_ROWS;r++) {
+		for (int c = 0;c < MAP_COLS;c++) {
+			switch (map[r][c])
+			{
+				case 1: //Ground
+				{
+					GameObject ground = createObject(r, c, res.groundtex, ObjectType::level);
+					gs.layers[LAYER_IDX_LEVEL].push_back(ground);
+					break;
+				}
+
+				case 2: //Metal
+				{
+					GameObject metal = createObject(r, c, res.metaltex, ObjectType::level);
+					gs.layers[LAYER_IDX_LEVEL].push_back(metal);
+					break;
+				}
+
+				case 3: //Brick
+				{
+					GameObject brick = createObject(r, c, res.bricktex, ObjectType::level);
+					gs.layers[LAYER_IDX_LEVEL].push_back(brick);
+					break;
+				}
+
+				case 4: //Player
+				{
+				//Our Player
+				GameObject player = createObject(r, c, res.idletex, ObjectType::player);
+				//Postion
+				player.position = glm::vec2(
+					c * TILE_SIZE,
+					state.logH - (MAP_ROWS - r) * TILE_SIZE
+				);
+				player.data.player = PlayerData();
+				player.acceleration = glm::vec2(120.0f, 0.0f);
+				player.MaxSpeedX = 80.0f;
+				player.animations = res.playerAnims;
+				player.currentAnimation = res.ANIM_PLAYER_IDLE;
+				gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
+				break;
+				}
+
+				case 5: //Grass
+				{
+					GameObject grass = createObject(r, c, res.grasstex, ObjectType::level);
+					gs.layers[LAYER_IDX_LEVEL].push_back(grass);
+					break;
+				}
+			}
+		}
 	}
 }
