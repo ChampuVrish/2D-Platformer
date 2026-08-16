@@ -340,7 +340,9 @@ bool initialize(SDLState& state)
 		cleanup(state);
 		initsuccess = false;
 	}
-	SDL_SetRenderVSync(state.renderer, 1);
+
+	//VSync
+	SDL_SetRenderVSync(state.renderer, true);
 
 	//Configure Presentation Mode
 	state.logW = 640;
