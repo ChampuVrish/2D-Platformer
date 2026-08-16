@@ -51,12 +51,14 @@ struct Resources
 {
 	const int ANIM_PLAYER_IDLE = 0;
 	const int ANIM_PLAYER_RUNNING = 1;
+	const int ANIM_PLAYER_JUMPING = 2;
+	const int ANIM_PLAYER_SLIDE = 3;
 	std::vector<Animation> playerAnims;
 
 	//TEXTURE MAPPING
 
 	std::vector<SDL_Texture*> textures;
-	SDL_Texture* idletex, * runtex, * grasstex, * bricktex, * metaltex, * groundtex;
+	SDL_Texture* idletex, * runtex, *jumptex,* slidetex, * grasstex, * bricktex, * metaltex, * groundtex;
 
 	SDL_Texture* loadTextures(SDL_Renderer* renderer, const std::string& filepath)
 	{
@@ -73,11 +75,20 @@ struct Resources
 		playerAnims.resize(5);
 
 		//IDLE ANIMATION
-		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 4.0f);
+		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.5f);
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
 
 		//RUNNING ANIMATION
 		playerAnims[ANIM_PLAYER_RUNNING] = Animation(4, 0.5f);
+		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\RUN.png");
+
+		//JUMPING ANIMATION
+		playerAnims[ANIM_PLAYER_JUMPING] = Animation(1, 1.0f);
+		jumptex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\jump.png");
+
+		//SLIDING ANIMATION
+		playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 1.0f);
+		slidetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\slide.png");
 
 		//Level Textures
 		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\RUN.png");
@@ -348,8 +359,6 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 			if (currdirection)
 			{
 				obj.data.player.state = PlayerState::running;
-				obj.texture = res.runtex;
-				obj.currentAnimation = res.ANIM_PLAYER_RUNNING;
 			}
 			else
 			{
@@ -368,18 +377,37 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 					}
 				}
 			}
+			obj.texture = res.idletex;
+			obj.currentAnimation = res.ANIM_PLAYER_IDLE;
 			break;
 		}
-		case PlayerState::running:
-		{
-			if (!currdirection)
+			case PlayerState::running:
 			{
-				obj.data.player.state = PlayerState::idle;
-				obj.texture = res.idletex;
-				obj.currentAnimation = res.ANIM_PLAYER_IDLE;
+				if (!currdirection)
+				{
+					obj.data.player.state = PlayerState::idle;
+				
+				}
+				//Sliding Animation
+				if (obj.velocity.x * obj.direction < 0 && obj.grounded)
+				{
+					obj.texture = res.slidetex;
+					obj.currentAnimation = res.ANIM_PLAYER_SLIDE;
+				}
+				else
+				{
+					obj.texture = res.runtex;
+					obj.currentAnimation = res.ANIM_PLAYER_RUNNING;
+				}
+				break;
 			}
-			break;
-		}
+
+			case PlayerState::jumping:
+			{
+				obj.texture = res.jumptex;
+				obj.currentAnimation = res.ANIM_PLAYER_JUMPING;
+				break;
+			}
 		}
 
 		//Add Acceleration Based on Direction
@@ -517,9 +545,9 @@ void createTiles(const SDLState& state, GameState& gs, const Resources& res)
 	short map[MAP_ROWS][MAP_COLS] = {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,2,2,0,0,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,1,1,1,1,1,2,3,1,2,3,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,1,1,1,1,1,2,3,1,2,3,1,1,2,2,3,1,3,2,1,1,2,1,3,3,3,1,2,1,3,1,2,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	};
 
 	const auto createObject = [&state](int r, int c, SDL_Texture* tex, ObjectType type)
