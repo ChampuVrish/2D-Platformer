@@ -499,6 +499,7 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 
 						//Spawn Bullets
 						GameObject bullet;
+						bullet.data.bullet = bulletData();
 						bullet.type = ObjectType::bullet;
 						bullet.direction = gs.player().direction;
 						bullet.texture = res.bullettex;
@@ -636,13 +637,13 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 				checkCollision(state, gs, res, obj, objB, deltaTime);
 
 				//Grounded Sensor
-				if (obj.type == ObjectType::level)
+				if (objB.type == ObjectType::level)
 				{
 					SDL_FRect sensor{
 					.x = obj.position.x + obj.collider.x,
-					.y = obj.position.y + obj.collider.y + obj.collider.h - 1,
+					.y = obj.position.y + obj.collider.y + obj.collider.h,
 					.w = obj.collider.w,
-					.h = 1
+					.h = 3
 					};
 					SDL_FRect rectB{
 						.x = objB.position.x + objB.collider.x,
@@ -660,6 +661,7 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 			}
 		}
 	}
+
 	if (obj.grounded != foundGround)
 	{
 		//Switching Grounded State
@@ -707,6 +709,16 @@ void CollisionResponse(const SDLState& state, GameState& gs,Resources& res, cons
 				}
 				break;
 			}	
+		}
+	}
+	else if (objA.type == ObjectType::bullet)
+	{
+		switch (objA.data.bullet.state)
+		{
+			case bulletState::moving:
+			{
+				objA.velocity *= 0;
+			}
 		}
 	}
 }
