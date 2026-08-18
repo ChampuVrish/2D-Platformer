@@ -64,6 +64,7 @@ struct Resources
 	const int ANIM_PLAYER_SLIDE = 3;
 	const int ANIM_PLAYER_SHOOT = 4;
 	const int ANIM_PLAYER_SLIDE_SHOOT = 5;
+	const int ANIM_PLAYER_JUMP_SHOOT = 6;
 	std::vector<Animation> playerAnims;
 
 	const int ANIM_BULLET_MOVING = 0;
@@ -75,7 +76,7 @@ struct Resources
 	std::vector<SDL_Texture*> textures;
 	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex,
 		* Bg2tex, * Bg3tex, * Bg4tex, * fogtex, * bullettex, * bulletHittex,
-		*shoottex,*runShoottex,*slideshoottex;
+		*shoottex,*runShoottex,*slideshoottex, *jumpShoottex;
 
 	SDL_Texture* loadTextures(SDL_Renderer* renderer, const std::string& filepath)
 	{
@@ -89,7 +90,7 @@ struct Resources
 
 	void load(SDLState& state)
 	{
-		playerAnims.resize(6);
+		playerAnims.resize(7);
 		//IDLE ANIMATION
 		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.3f);
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
@@ -121,11 +122,13 @@ struct Resources
 
 		//Shooting
 
-		playerAnims[ANIM_PLAYER_SHOOT] = Animation(4, 0.35f);
+		playerAnims[ANIM_PLAYER_SHOOT] = Animation(4, 0.3f);
 		shoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\shoot.png");
 		runShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\runShoot.png");
 		playerAnims[ANIM_PLAYER_SLIDE_SHOOT] = Animation(1, 0.6f);
 		slideshoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\slideShoot.png");
+		playerAnims[ANIM_PLAYER_JUMP_SHOOT] = Animation(2, 0.3f);
+		jumpShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\jumpShoot.png");
 
 
 
@@ -316,7 +319,10 @@ int main(int argc, char* argv[])
 		//Draw Bullets
 		for (GameObject &bullet : gs.bullets)
 		{
-			drawObject(state, gs, bullet, 32.0f,32.0f, deltaTime);
+			if (bullet.data.bullet.state != bulletState::inactive)
+			{
+				drawObject(state, gs, bullet, 32.0f, 32.0f, deltaTime);
+			}
 		};
 
 
@@ -528,13 +534,15 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 						bullet.currentAnimation = res.ANIM_BULLET_MOVING;
 						const float bulletSize = 2.5f;
 						bullet.collider = SDL_FRect{
-							.x = 15,
+							.x = 13,
 							.y = 14,
 							.w = bulletSize,
 							.h = bulletSize
 						};
 						bullet.MaxSpeedX = 1000.0f;
-						bullet.velocity = glm::vec2(obj.velocity.x + 500.0f * obj.direction, 0);
+						const int yVariation = 50; //Recoil
+						const float yVelocity = SDL_rand(yVariation) - yVariation / 2.0f;
+						bullet.velocity = glm::vec2(obj.velocity.x + 500.0f * obj.direction, yVelocity);
 						bullet.animations = res.bulletAnims;
 
 						//Adjust bullet Start
@@ -619,9 +627,7 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 
 			case PlayerState::jumping:
 			{
-				handleShooting(res.runtex, res.runShoottex, res.ANIM_PLAYER_RUNNING, res.ANIM_PLAYER_RUNNING);
-				//obj.texture = res.jumptex;
-				//obj.currentAnimation = res.ANIM_PLAYER_JUMPING;
+				handleShooting(res.jumptex, res.jumpShoottex, res.ANIM_PLAYER_JUMPING, res.ANIM_PLAYER_JUMP_SHOOT);
 				break;
 			}
 		}
@@ -629,9 +635,25 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 	}
 	else if (obj.type == ObjectType::bullet)
 	{
-		if (obj.position.x - gs.mapViewport.x < 0 || obj.position.x - gs.mapViewport.x > state.logW
-			|| obj.position.y - gs.mapViewport.y < 0 || obj.position.y - gs.mapViewport.y > state.logH) {
-			obj.data.bullet.state = bulletState::inactive;
+		switch (obj.data.bullet.state)
+		{
+			case bulletState::moving:
+			{
+				if (obj.position.x - gs.mapViewport.x < 0 || obj.position.x - gs.mapViewport.x > state.logW
+					|| obj.position.y - gs.mapViewport.y < 0 || obj.position.y - gs.mapViewport.y > state.logH)
+				{
+					obj.data.bullet.state = bulletState::inactive;
+				}
+				break;
+			}
+
+			case bulletState::colliding:
+			{
+				if (obj.animations[obj.currentAnimation].isDone())
+				{
+					obj.data.bullet.state = bulletState::inactive;
+				}
+			}
 		}
 	}
 
@@ -677,7 +699,6 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 
 					if (SDL_GetRectIntersectionFloat(&sensor, &rectB, &rectC))
 					{
-						
 						foundGround = true;
 					}
 				}
@@ -700,6 +721,32 @@ void CollisionResponse(const SDLState& state, GameState& gs,Resources& res, cons
 	const SDL_FRect &rectB, const SDL_FRect &rectC,
 	GameObject& objA, GameObject& objB, float deltaTime)
 {
+	const auto genericResponse = [&]()
+		{
+			if (rectC.w < rectC.h)
+			{
+				//Horizontal Collision
+				if (objA.velocity.x > 0) {  // Right Collision
+					objA.position.x -= rectC.w;
+				}
+				else if (objA.velocity.x < 0) {
+					objA.position.x += rectC.w;	//Left Collision
+				}
+				objA.velocity.x = 0;
+			}
+			else
+			{
+				//Verticle Collision
+				if (objA.velocity.y > 0) {  // Down Collision
+					objA.position.y -= rectC.h;
+				}
+				else if (objA.velocity.y < 0) {
+					objA.position.y += rectC.h;	//Up Collision
+				}
+				objA.velocity.y = 0;
+			}
+		};
+
 	//Object We Are Checking
 	if (objA.type == ObjectType::player)
 	{
@@ -708,28 +755,7 @@ void CollisionResponse(const SDLState& state, GameState& gs,Resources& res, cons
 		{
 			case ObjectType::level:
 			{
-				if (rectC.w < rectC.h)
-				{
-					//Horizontal Collision
-					if (objA.velocity.x > 0) {  // Right Collision
-						objA.position.x -= rectC.w;
-					}
-					else if (objA.velocity.x < 0) {
-						objA.position.x += rectC.w;	//Left Collision
-					}
-					objA.velocity.x = 0;
-				}
-				else
-				{
-					//Verticle Collision
-					if (objA.velocity.y > 0) {  // Down Collision
-						objA.position.y -= rectC.h;
-					}
-					else if(objA.velocity.y < 0){
-						objA.position.y += rectC.h;	//Up Collision
-					}
-					objA.velocity.y = 0;
-				}
+				genericResponse();
 				break;
 			}	
 		}
@@ -740,7 +766,11 @@ void CollisionResponse(const SDLState& state, GameState& gs,Resources& res, cons
 		{
 			case bulletState::moving:
 			{
-				objA.velocity *= 0;
+				genericResponse();
+				objA.data.bullet.state = bulletState::moving;
+				objA.texture = res.bulletHittex;
+				objA.currentAnimation = res.ANIM_BULLET_HIT;
+				break;
 			}
 		}
 	}
@@ -788,7 +818,7 @@ void createTiles(const SDLState& state, GameState& gs, const Resources& res)
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,2,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,1,2,1,2,1,1,2,1,1,2,1,1,2,2,1,1,2,2,1,1,2,1,2,2,1,1,2,1,2,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	};
 
