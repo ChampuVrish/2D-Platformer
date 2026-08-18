@@ -41,11 +41,13 @@ struct GameState
 	int playerIdx;
 	SDL_FRect mapViewport;
 	float bg2Scroll, bg3Scroll, bg4Scroll, bgfog;
+	bool debugMode;
 
 	GameState(const SDLState& state) {
 		playerIdx = -1;
 		mapViewport = { 0, 0, static_cast<float>(state.logW), static_cast<float>(state.logH) };
 		bg2Scroll = bg3Scroll = bg4Scroll = bgfog = 0;
+		debugMode = false;
 	}
 
 	GameObject& player() {
@@ -119,10 +121,10 @@ struct Resources
 
 		//Shooting
 
-		playerAnims[ANIM_PLAYER_SHOOT] = Animation(4, 0.5f);
-		shoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
+		playerAnims[ANIM_PLAYER_SHOOT] = Animation(4, 0.35f);
+		shoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\shoot.png");
 		runShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\runShoot.png");
-		playerAnims[ANIM_PLAYER_SLIDE_SHOOT] = Animation(1, 1.0f);
+		playerAnims[ANIM_PLAYER_SLIDE_SHOOT] = Animation(1, 0.6f);
 		slideshoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\slideShoot.png");
 
 
@@ -217,6 +219,9 @@ int main(int argc, char* argv[])
 				case SDL_EVENT_KEY_UP:
 				{
 					handlekeyinput(state, gs, gs.player(), event.key.scancode, false);
+					if (event.key.scancode == SDL_SCANCODE_BACKSLASH) {
+						gs.debugMode = !gs.debugMode;
+					}
 					break;
 				}
 			}
@@ -329,10 +334,14 @@ int main(int argc, char* argv[])
 
 		}
 
+
 		//Show Debug Info
-		SDL_SetRenderDrawColor(state.renderer, 255, 255, 255, 255);
-		SDL_RenderDebugText(state.renderer, 5, 5,
-		std::format("S: {}, B: {},G: {}", static_cast<int>(gs.player().data.player.state),gs.bullets.size(),gs.player().grounded).c_str());
+		if (gs.debugMode) {
+			SDL_SetRenderDrawColor(state.renderer, 255, 255, 255, 255);
+			SDL_RenderDebugText(state.renderer, 5, 5,
+				std::format("S: {}, B: {},G: {}", static_cast<int>(gs.player().data.player.state), gs.bullets.size(), gs.player().grounded).c_str());
+		}
+		
 
 
 
@@ -424,6 +433,19 @@ void drawObject(const SDLState& state, GameState& gs, GameObject& obj,float widt
 
 	SDL_FlipMode flipmode = obj.direction == -1 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
 	SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
+
+	if (gs.debugMode) {
+		SDL_FRect rectA{
+		.x = obj.position.x + obj.collider.x - gs.mapViewport.x,
+		.y = obj.position.y + obj.collider.y,
+		.w = obj.collider.w,
+		.h = obj.collider.h
+		};
+
+		SDL_SetRenderDrawBlendMode(state.renderer, SDL_BLENDMODE_BLEND);
+		SDL_SetRenderDrawColor(state.renderer, 0, 255, 0, 100);
+		SDL_RenderRect(state.renderer, &rectA);
+	}
 }
 
 void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime)
@@ -585,9 +607,9 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 				//Grounded Sensor
 				SDL_FRect sensor{
 					.x = obj.position.x + obj.collider.x,
-					.y = obj.position.y + obj.collider.y + obj.collider.h - 2,
+					.y = obj.position.y + obj.collider.y + obj.collider.h - 1,
 					.w = obj.collider.w,
-					.h = 3
+					.h = 1
 				};
 				SDL_FRect rectB{
 					.x = objB.position.x + objB.collider.x,
@@ -695,8 +717,8 @@ void createTiles(const SDLState& state, GameState& gs, const Resources& res)
 	short map[MAP_ROWS][MAP_COLS] = {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,2,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,1,2,1,2,1,1,2,1,1,2,1,1,2,2,1,1,2,2,1,1,2,1,2,2,1,1,2,1,2,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	};
 
@@ -704,7 +726,7 @@ void createTiles(const SDLState& state, GameState& gs, const Resources& res)
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,5,5,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	};
 
@@ -712,7 +734,7 @@ void createTiles(const SDLState& state, GameState& gs, const Resources& res)
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	};
 
@@ -772,7 +794,7 @@ void createTiles(const SDLState& state, GameState& gs, const Resources& res)
 						player.currentAnimation = res.ANIM_PLAYER_IDLE;
 						player.dynamic = true;
 						player.collider = {
-							.x = 11,
+							.x = 10,
 							.y = 10.5,
 							.w = 14,
 							.h = 22
