@@ -453,9 +453,31 @@ void drawObject(const SDLState& state, GameState& gs, GameObject& obj,float widt
 		.h = obj.collider.h
 		};
 
+		SDL_FRect sensor{
+		.x = (obj.position.x + obj.collider.x + 4.0f) - gs.mapViewport.x,
+		.y = obj.position.y + obj.collider.y + obj.collider.h,
+		.w = obj.collider.w - 8.0f,
+		.h = 2.0f
+		};
+
+		//Collision Display
 		SDL_SetRenderDrawBlendMode(state.renderer, SDL_BLENDMODE_BLEND);
 		SDL_SetRenderDrawColor(state.renderer, 0, 255, 0, 100);
 		SDL_RenderRect(state.renderer, &rectA);
+
+		//Sensor Diplay
+		SDL_SetRenderDrawColor(state.renderer, 0, 255, 0, 255);
+		if (obj.grounded)
+		{
+			SDL_SetRenderDrawColor(state.renderer, 0, 0, 255, 255); // Blue
+		}
+		else
+		{
+			SDL_SetRenderDrawColor(state.renderer, 255, 0, 0, 255); // red
+		}
+
+		SDL_RenderRect(state.renderer, &sensor);
+
 	}
 }
 
@@ -640,10 +662,10 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 				if (objB.type == ObjectType::level)
 				{
 					SDL_FRect sensor{
-					.x = obj.position.x + obj.collider.x,
+					.x = obj.position.x + obj.collider.x + 4,
 					.y = obj.position.y + obj.collider.y + obj.collider.h,
-					.w = obj.collider.w,
-					.h = 3
+					.w = obj.collider.w - 8,
+					.h = 1
 					};
 					SDL_FRect rectB{
 						.x = objB.position.x + objB.collider.x,
@@ -655,6 +677,7 @@ void update(const SDLState& state, GameState& gs, Resources& res, GameObject& ob
 
 					if (SDL_GetRectIntersectionFloat(&sensor, &rectB, &rectC))
 					{
+						
 						foundGround = true;
 					}
 				}
