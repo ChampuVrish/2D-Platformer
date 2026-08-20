@@ -178,7 +178,6 @@ This engine is being developed as the foundation for a **Dark Horror-inspired go
 | **D**               | Move Right                                 |
 | **K**               | Jump                                       |
 | **J**               | Shoot                                      |
-| **\** *(Backslash)* | Toggle Debug Mode & Collision Boxes        |
 
 ### Debug Mode
 
