@@ -99,48 +99,47 @@ struct Resources
 		playerAnims.resize(7);
 		//IDLE ANIMATION
 		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.3f);
-		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\idle.png");
+		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\idle.png");
 
 		//RUNNING ANIMATION
 		playerAnims[ANIM_PLAYER_RUNNING] = Animation(4, 0.5f);
-		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\RUN.png");
+		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\RUN.png");
 
 		//JUMPING ANIMATION
 		playerAnims[ANIM_PLAYER_JUMPING] = Animation(1, 1.0f);
-		jumptex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\jump.png");
+		jumptex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\jump.png");
 
 		//SLIDING ANIMATION
 		playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 1.0f);
-		slidetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\slide.png");
+		slidetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\slide.png");
 
 		//Level Textures
-		runtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\RUN.png");
-		grasstex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\GRASS.png");
-		bricktex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\BRICK.png");
-		metaltex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\METAL.png");
-		groundtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\GROUND.png");
+		grasstex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\GRASS.png");
+		bricktex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\BRICK.png");
+		metaltex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\METAL.png");
+		groundtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\GROUND.png");
 		//Backrounds
-		BGtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\BG1.png");
-		Bg2tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\BG2.png");
-		Bg3tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\BG3.png");
-		Bg4tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\BG4.png");
-		fogtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\fog.png");
+		BGtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG1.png");
+		Bg2tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG2.png");
+		Bg3tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG3.png");
+		Bg4tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG4.png");
+		fogtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\fog.png");
 
 		//Shooting
 
 		playerAnims[ANIM_PLAYER_SHOOT] = Animation(4, 0.3f);
-		shoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\shoot.png");
-		runShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\runShoot.png");
+		shoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\shoot.png");
+		runShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\runShoot.png");
 		playerAnims[ANIM_PLAYER_SLIDE_SHOOT] = Animation(1, 0.6f);
-		slideshoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\slideShoot.png");
+		slideshoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\slideShoot.png");
 		playerAnims[ANIM_PLAYER_JUMP_SHOOT] = Animation(2, 0.3f);
-		jumpShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\jumpShoot.png");
+		jumpShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\jumpShoot.png");
 
 		//Bullets
 
 		bulletAnims.resize(2);
 		bulletAnims[ANIM_BULLET_MOVING] = Animation(1, 0.05f);
-		bullettex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\bulletmain.png");
+		bullettex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Bullets\\bullet.png");
 		bulletAnims[ANIM_BULLET_HIT] = Animation(1, 0.5f);
 
 		//Enemy
