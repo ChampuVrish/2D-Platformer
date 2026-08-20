@@ -145,11 +145,11 @@ struct Resources
 
 		//Enemy
 		enemyAnims.resize(3);
-		enemyAnims[ANIM_ENEMY_IDLE] = Animation(5, 0.7f);
+		enemyAnims[ANIM_ENEMY_IDLE] = Animation(5, 1.0f);
 		enemytex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Enemy\\Enemyidle.png");
 		enemyAnims[ANIM_ENEMY_HIT] = Animation(1, 0.7f);
 		enemyHittex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Enemy\\EnemyHit.png");
-		enemyAnims[ANIM_ENEMY_DEATH] = Animation(8, 0.7f);
+		enemyAnims[ANIM_ENEMY_DEATH] = Animation(8, 2.0f);
 		enemydietex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Enemy\\EnemyDeath.png");
 
 	}
@@ -277,17 +277,6 @@ struct Resources
 			SDL_SetRenderDrawColor(state.renderer, 0, 0, 0, 255);
 			SDL_RenderClear(state.renderer);
 
-			SDL_SetRenderDrawColor(state.renderer, 10, 10, 40, 255);
-
-			SDL_FRect gameArea{
-			0.0f,
-			0.0f,
-			640.0f,
-			360.0f
-			};
-
-
-			SDL_RenderFillRect(state.renderer, &gameArea);
 
 			//Draw Background
 			SDL_FRect bgDst{
@@ -319,13 +308,18 @@ struct Resources
 
 
 			//Draw all Objects
-			for (auto& layer : gs.layers)
+			for (std::vector<GameObject>& layer : gs.layers)
 			{
 				for (GameObject& obj : layer)
 				{
-					const float frameWidth = 147;
-					const float frameHeight = 145;
-					drawObject(state, gs, obj, frameWidth, frameHeight, deltaTime);
+					if (obj.type == ObjectType::enemy)
+					{
+						drawObject(state, gs, obj, 410.0f, 493.0f, deltaTime);
+					}
+					else
+					{
+						drawObject(state, gs, obj, 147.0f, 145.0f, deltaTime);
+					}
 				}
 			}
 
@@ -337,8 +331,7 @@ struct Resources
 					drawObject(state, gs, bullet, 32.0f, 32.0f, deltaTime);
 				}
 			};
-
-
+			
 
 			//Draw foreground Tiles
 			for (GameObject& obj : gs.foregroundTiles)
@@ -434,6 +427,7 @@ struct Resources
 
 		const float spriteSize = 32.0f;
 
+
 		float srcX = obj.currentAnimation != -1
 			? obj.animations[obj.currentAnimation].currentframe() * width : 0.0f;
 
@@ -454,12 +448,20 @@ struct Resources
 		//Bullet Size
 		if (obj.type == ObjectType::bullet) {
 			SDL_FRect dst{
-			.x = obj.position.x - gs.mapViewport.x,
-			.y = obj.position.y,
-			.w = 2,
-			.h = 2
+			dst.w = 2,
+			dst.h = 2
 			};
 		}
+
+		// Enemy size
+		if (obj.type == ObjectType::enemy)
+		{
+			dst.w = 40.0f;
+			dst.h = 40.0f;
+			// Lift enemy up by the extra height.
+			dst.y -= (40.0f - 32.0f);
+		}
+
 
 		SDL_FlipMode flipmode = obj.direction == -1 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
 		SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
@@ -830,8 +832,8 @@ struct Resources
 
 		short map[MAP_ROWS][MAP_COLS] = {
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,4,0,6,0,0,0,0,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,2,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,4,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,6,0,0,0,0,2,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,1,2,1,2,1,1,2,1,1,2,1,1,2,2,1,1,2,2,1,1,2,1,2,2,1,1,2,1,2,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 		};
@@ -929,6 +931,12 @@ struct Resources
 							GameObject enemy = createObject(r, c, res.enemytex, ObjectType::enemy);
 							enemy.currentAnimation = res.ANIM_ENEMY_IDLE;
 							enemy.animations = res.enemyAnims;
+							enemy.collider = SDL_FRect{
+								.x = 10,
+								.y = -4,
+								.w = 22,
+								.h = 36
+							};
 							gs.layers[LAYER_IDX_CHARACTERS].push_back(enemy);
 							break;
 						}
