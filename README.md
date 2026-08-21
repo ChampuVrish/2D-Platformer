@@ -1,4 +1,4 @@
-# Custom 2D Engine
+# Custom 2D Platformer Engine
 (Can't Even come up with a good name........yet)
 
 *A handcrafted 2D action-platformer engine built with ****SDL3**** and ****C++****, inspired by gothic horror games and designed from scratch as a learning project that grew into a reusable game engine.*
@@ -164,11 +164,12 @@ This engine is being developed as the foundation for a **Dark Horror-inspired go
 ---
 
 ## Screenshots
+<img width="1267" height="729" alt="image" src="https://github.com/user-attachments/assets/d973e06c-1385-411f-9a55-78c62f65073d" />
 
 > Coming soon: Gameplay, parallax backgrounds, enemy encounters, and boss arena previews.
 
 ---
-## Controls
+## Controls (Keyboard)
 
 | Key                 | Action                                     |
 | ------------------- | ------------------------------------------ |
@@ -179,9 +180,21 @@ This engine is being developed as the foundation for a **Dark Horror-inspired go
 | **K**               | Jump                                       |
 | **J**               | Shoot                                      |
 
+
+## Controls (Xbox Controllers)
+
+| Key                 | Action                                     |
+| ------------------- | ------------------------------------------ |
+| **Dpad-UP**         | Move Up *(future interactions / ladders)*  |
+| **Dpad-LEFT**       | Move Left                                  |
+| **Dpad-DOWN**       | Move Down *(future interactions / crouch)* |
+| **Dpad-RIGHT**      | Move Right                                 |
+| **A**               | Jump                                       |
+| **X**               | Shoot                                      |
+
 ### Debug Mode
 
-Press **Backslash (`\`)** at any time to enable or disable the engine's debug overlay.
+Press **Backslash (`\`)** or Back(SELECT) on Controller at any time to enable or disable the engine's debug overlay.
 
 When enabled, the engine displays:
 
