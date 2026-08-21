@@ -13,6 +13,7 @@ using namespace std;
 
 struct SDLState
 {
+	SDL_Gamepad* gamepad = nullptr;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	int width, height, logW, logH;
@@ -180,7 +181,7 @@ struct Resources
 		state.width = 1600;
 		state.height = 900;
 		state.logW = 640;
-		state.logH = 360;
+		state.logH = 320;
 
 		if (!initialize(state)) {
 			return 1;
@@ -239,6 +240,41 @@ struct Resources
 					}
 					break;
 				}
+				case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+				{
+					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_BACK)
+					{
+						gs.debugMode = !gs.debugMode;
+					}
+					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH)
+					{
+						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_K, true);
+					}
+
+					break;
+				}
+				case SDL_EVENT_GAMEPAD_ADDED:
+				{
+					state.gamepad = SDL_OpenGamepad(event.gdevice.which);
+
+					if (state.gamepad)
+					{
+						SDL_Log("Xbox Controller Connected!");
+					}
+
+					break;
+				}
+				case SDL_EVENT_GAMEPAD_REMOVED:
+				{
+					if (state.gamepad)
+					{
+						SDL_CloseGamepad(state.gamepad);
+						state.gamepad = nullptr;
+					}
+
+					SDL_Log("Controller Disconnected!");
+					break;
+				}
 				}
 
 			}
@@ -282,13 +318,12 @@ struct Resources
 			.x = 0.0f,
 			.y = 0.0f,
 			.w = 640.0f,
-			.h = 360.0f
+			.h = 320.0f
 			};
+
 			SDL_RenderTexture(state.renderer, res.BGtex, nullptr, &bgDst);
 			drawParallax(state.renderer, res.Bg4tex, gs.player().velocity.x, gs.bg4Scroll, 0.06f, deltaTime);
-
 			drawParallax(state.renderer, res.Bg3tex, gs.player().velocity.x, gs.bg3Scroll, 0.20f, deltaTime);
-
 			drawParallax(state.renderer, res.Bg2tex, gs.player().velocity.x, gs.bg2Scroll, 0.40f, deltaTime);
 			drawParallax(state.renderer, res.fogtex, gs.player().velocity.x, gs.bgfog, 0.13f, deltaTime);
 
@@ -305,20 +340,30 @@ struct Resources
 
 			}
 
+			
+
 
 			//Draw all Objects
 			for (std::vector<GameObject>& layer : gs.layers)
 			{
 				for (GameObject& obj : layer)
 				{
+					//Standard Size 
+					float RenderW = 32.0f;
+					float RenderH = 32.0f;
+
+					if (obj.type == ObjectType::player)
+					{
+						RenderW = 147.0f;
+						RenderH = 145.0f;
+					}
+
 					if (obj.type == ObjectType::enemy)
 					{
-						drawObject(state, gs, obj, 410.0f, 493.0f, deltaTime);
+						RenderW = 410.0f;
+						RenderH = 493.0f;
 					}
-					else
-					{
-						drawObject(state, gs, obj, 147.0f, 145.0f, deltaTime);
-					}
+					drawObject(state, gs, obj, RenderW, RenderH, deltaTime);
 				}
 			}
 
@@ -377,7 +422,7 @@ struct Resources
 	bool initialize(SDLState& state)
 	{
 		bool initsuccess = true;
-		if (!SDL_Init(SDL_INIT_VIDEO))
+		if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
 		{
 			SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", "Failed to initialize SDL", nullptr);
 			initsuccess = false;
@@ -498,6 +543,27 @@ struct Resources
 
 			SDL_RenderRect(state.renderer, &sensor);
 
+			//ControllerDebug
+			// White text
+			SDL_SetRenderDrawColor(state.renderer, 255, 255, 255, 255);
+			SDL_RenderDebugText(state.renderer, 4, 100, "Controller:");
+
+			SDL_FRect controllerRect{
+			.x = 95.0f,
+			.y = 100.0f - 0.6f,
+			.w = 9.0f,
+			.h = 9.0f
+			};
+
+			SDL_SetRenderDrawBlendMode(state.renderer, SDL_BLENDMODE_BLEND);
+
+			if (state.gamepad)
+				SDL_SetRenderDrawColor(state.renderer, 0, 255, 0, 255);   // Green
+			else
+				SDL_SetRenderDrawColor(state.renderer, 255, 0, 0, 255);   // Red
+
+			SDL_RenderFillRect(state.renderer, &controllerRect);
+
 		}
 	}
 
@@ -514,23 +580,34 @@ struct Resources
 		{
 			// Update player-specific logic......For example, handle input, movement, etc.
 
-			//Left Movement
-			if (state.keys[SDL_SCANCODE_A])
+			//KeyBoard Keys
+			bool moveLeft = state.keys[SDL_SCANCODE_A];
+			bool moveRight = state.keys[SDL_SCANCODE_D];
+
+			if (state.gamepad)
 			{
-				currdirection += -1;
+				//GamePad Keys
+				moveLeft |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+				moveRight |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
 			}
 
-			//Right Movement
-			if (state.keys[SDL_SCANCODE_D])
-			{
+			if (moveLeft)
+				currdirection -= 1;
+
+			if (moveRight)
 				currdirection += 1;
-			}
 
 			Timer& weaponTimer = obj.data.player.weaponTimer;
 			weaponTimer.step(deltaTime / 3); //Rate Of Shooting
 			const auto handleShooting = [&state, &gs, &res, &obj, &weaponTimer](SDL_Texture* tex, SDL_Texture* shootTex, int animIndex, int shootAnimIndex)
 				{
-					if (state.keys[SDL_SCANCODE_J])
+					//Shoot Key 
+					bool shootPressed = state.keys[SDL_SCANCODE_J];
+					if (state.gamepad)
+					{
+						shootPressed |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_WEST);
+					}
+					if (shootPressed)
 					{
 						//Set Shooting Animation And Textures
 						obj.texture = shootTex;
