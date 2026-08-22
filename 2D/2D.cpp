@@ -463,7 +463,7 @@ struct Resources
 		const float spriteSize = 32.0f;
 
 		float srcX = obj.currentAnimation != -1
-			? obj.animations[obj.currentAnimation].currentframe() * width : (obj.SpriteFrame - 1);
+			? obj.animations[obj.currentAnimation].currentframe() * width : (obj.SpriteFrame - 1)*width;
 
 		SDL_FRect src{
 			.x = srcX,
@@ -770,6 +770,7 @@ struct Resources
 						obj.texture = res.enemytex;
 						obj.currentAnimation = res.ANIM_ENEMY_IDLE;
 					}
+					break;
 				}
 				case EnemyState::dead:
 				{
