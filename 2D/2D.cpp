@@ -141,7 +141,8 @@ struct Resources
 		bulletAnims.resize(2);
 		bulletAnims[ANIM_BULLET_MOVING] = Animation(1, 0.05f);
 		bullettex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Bullets\\bullet.png");
-		bulletAnims[ANIM_BULLET_HIT] = Animation(1, 0.5f);
+		bulletAnims[ANIM_BULLET_HIT] = Animation(6, 0.02f);
+		bulletHittex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Bullets\\bullethit.png");
 
 		//Enemy
 		enemyAnims.resize(3);
@@ -285,11 +286,6 @@ struct Resources
 				for (GameObject& obj : layer)
 				{
 					update(state, gs, res, obj, deltaTime);
-					//Update Animation
-					if (obj.currentAnimation != -1)
-					{
-						obj.animations[obj.currentAnimation].step(deltaTime);
-					}
 				}
 			}
 
@@ -297,11 +293,6 @@ struct Resources
 			for (GameObject& bullet : gs.bullets)
 			{
 				update(state, gs, res, bullet, deltaTime);
-				//Update Animation
-				if (bullet.currentAnimation != -1)
-				{
-					bullet.animations[bullet.currentAnimation].step(deltaTime);
-				}
 			}
 
 			//Calculate Map Viewport Based on Player Position
@@ -471,9 +462,8 @@ struct Resources
 
 		const float spriteSize = 32.0f;
 
-
 		float srcX = obj.currentAnimation != -1
-			? obj.animations[obj.currentAnimation].currentframe() * width : 0.0f;
+			? obj.animations[obj.currentAnimation].currentframe() * width : (obj.SpriteFrame - 1);
 
 		SDL_FRect src{
 			.x = srcX,
@@ -508,7 +498,22 @@ struct Resources
 
 
 		SDL_FlipMode flipmode = obj.direction == -1 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-		SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
+		if (!obj.ShouldFlash) 
+		{
+			SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
+		}
+		else
+		{
+			//Flash Object Red
+			SDL_SetTextureColorModFloat(obj.texture, 1.7f, 1.0f, 1.0f);
+			SDL_RenderTextureRotated(state.renderer, obj.texture, &src, &dst, 0, nullptr, flipmode);
+			SDL_SetTextureColorModFloat(obj.texture, 1.0f, 1.0f, 1.0f);
+		}
+
+		if (obj.FlashTimer.step(deltaTime))
+		{
+			obj.ShouldFlash = false;
+		}
 
 		if (gs.debugMode) {
 			SDL_FRect rectA{
@@ -569,6 +574,12 @@ struct Resources
 
 	void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime)
 	{
+		//Update Animation
+		if (obj.currentAnimation != -1)
+		{
+			obj.animations[obj.currentAnimation].step(deltaTime);
+		}
+
 		if (obj.dynamic && !obj.grounded) {
 			//Apply Gravity
 			obj.velocity += glm::vec2(0, 500) * deltaTime;
@@ -747,6 +758,31 @@ struct Resources
 			}
 			}
 		}
+		else if (obj.type == ObjectType::enemy)
+		{
+			switch (obj.data.enemy.state)
+			{
+				case EnemyState::damaged:
+				{
+					if (obj.data.enemy.damagedTimer.step(deltaTime))
+					{
+						obj.data.enemy.state = EnemyState::shambling;
+						obj.texture = res.enemytex;
+						obj.currentAnimation = res.ANIM_ENEMY_IDLE;
+					}
+				}
+				case EnemyState::dead:
+				{
+					if (obj.currentAnimation != -1 && obj.animations[obj.currentAnimation].isDone())
+					{
+						//Remove Animation And Set To end Frame
+						obj.currentAnimation = -1;
+						obj.SpriteFrame = 8;
+					}
+					break;
+				}
+			}
+		}
 
 		if (currdirection)
 		{
@@ -845,25 +881,66 @@ struct Resources
 			switch (objB.type)
 			{
 			case ObjectType::level:
-			{
+				{
 				genericResponse();
 				break;
-			}
+				}
 			}
 		}
 		else if (objA.type == ObjectType::bullet)
 		{
+			bool passThrough = false;
 			switch (objA.data.bullet.state)
 			{
 			case bulletState::moving:
-			{
-				genericResponse();
-				objA.velocity *= 0;
-				objA.data.bullet.state = bulletState::moving;
-				objA.texture = res.bulletHittex;
-				objA.currentAnimation = res.ANIM_BULLET_HIT;
+				{
+				switch (objB.type)
+				{
+					case ObjectType::level:
+					{
+						break;
+					}
+					case ObjectType::enemy:
+					{
+						//bullet Connected With Enemy
+						EnemyData& d = objB.data.enemy;
+						if (d.state != EnemyState::dead)
+						{
+							objB.direction = -objA.direction;
+							objB.ShouldFlash = true;
+							objB.FlashTimer.reset();
+							objB.texture = res.enemyHittex;
+							objB.currentAnimation = res.ANIM_ENEMY_HIT;
+							objB.data.enemy.Enemyhealth -= 10;				//Bullet Damage per Shot
+							d.state = EnemyState::damaged;
+
+							//Dead Condition
+							if (d.Enemyhealth <= 0)
+							{
+								d.state = EnemyState::dead;
+								objB.texture = res.enemydietex;
+								objB.currentAnimation = res.ANIM_ENEMY_DEATH;
+							}
+						}
+						else
+						{
+							//Enemy is Dead Don't Collide
+							passThrough = true;
+
+						}
+						break;
+					}
+				}
+				if (!passThrough)
+				{
+					genericResponse();
+					objA.velocity *= 0;
+					objA.data.bullet.state = bulletState::colliding;
+					objA.texture = res.bulletHittex;
+					objA.currentAnimation = res.ANIM_BULLET_HIT;
+				}
 				break;
-			}
+				}
 			}
 		}
 	}
@@ -1005,6 +1082,7 @@ struct Resources
 						case 6: //Enemy
 						{
 							GameObject enemy = createObject(r, c, res.enemytex, ObjectType::enemy);
+							enemy.data.enemy = EnemyData();
 							enemy.currentAnimation = res.ANIM_ENEMY_IDLE;
 							enemy.animations = res.enemyAnims;
 							enemy.collider = SDL_FRect{
