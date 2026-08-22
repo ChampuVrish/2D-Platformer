@@ -760,8 +760,25 @@ struct Resources
 		}
 		else if (obj.type == ObjectType::enemy)
 		{
+			int responseDistance = 150; //Distance Enemy Detects the Player
 			switch (obj.data.enemy.state)
 			{
+				case EnemyState::shambling:
+				{
+					glm::vec2 playerdir = gs.player().position - obj.position;
+					if (glm::length(playerdir) < responseDistance)
+					{
+						currdirection = playerdir.x < 0 ? -1 : 1;
+						obj.acceleration = glm::vec2(30, 0);
+
+					}
+					else
+					{
+						obj.acceleration = glm::vec2(0);
+						obj.velocity.x = 0;
+					}
+					break;
+				}
 				case EnemyState::damaged:
 				{
 					if (obj.data.enemy.damagedTimer.step(deltaTime))
@@ -774,7 +791,9 @@ struct Resources
 				}
 				case EnemyState::dead:
 				{
-					if (obj.currentAnimation != -1 && obj.animations[obj.currentAnimation].isDone())
+					obj.velocity.x = 0;
+					if (obj.currentAnimation != -1 &&
+						obj.animations[obj.currentAnimation].isDone())
 					{
 						//Remove Animation And Set To end Frame
 						obj.currentAnimation = -1;
@@ -944,6 +963,10 @@ struct Resources
 				}
 			}
 		}
+		else if (objA.type == ObjectType::enemy)
+		{
+			genericResponse();
+		}
 	}
 
 	void checkCollision(const SDLState& state, GameState& gs, Resources& res, GameObject& a, GameObject& b, float deltaTime)
@@ -985,10 +1008,10 @@ struct Resources
 		*/
 
 		short map[MAP_ROWS][MAP_COLS] = {
-			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,4,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,6,0,0,0,0,2,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,4,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,0,0,0,0,2,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,1,2,1,2,1,1,2,1,1,2,1,1,2,2,1,1,2,2,1,1,2,1,2,2,1,1,2,1,2,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 		};
 
@@ -1084,6 +1107,8 @@ struct Resources
 						{
 							GameObject enemy = createObject(r, c, res.enemytex, ObjectType::enemy);
 							enemy.data.enemy = EnemyData();
+							enemy.dynamic = true;
+							enemy.MaxSpeedX = 80;
 							enemy.currentAnimation = res.ANIM_ENEMY_IDLE;
 							enemy.animations = res.enemyAnims;
 							enemy.collider = SDL_FRect{
