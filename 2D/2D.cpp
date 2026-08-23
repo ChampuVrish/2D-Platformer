@@ -32,6 +32,15 @@ const int MAP_ROWS = 5;
 const int MAP_COLS = 50;
 const int TILE_SIZE = 32;
 
+//Player Collision Box
+const SDL_FRect PLAYER_STANDING_COLLIDER{
+	9.0f, 2.0f, 14.0f, 30.0f       // x , y , w , h //
+};
+
+const SDL_FRect PLAYER_PRONE_COLLIDER{
+	1.0f, 18.0f, 30.0f, 14.0f         // x , y , w , h //
+};
+
 
 struct GameState
 {
@@ -66,6 +75,8 @@ struct Resources
 	const int ANIM_PLAYER_SHOOT = 4;
 	const int ANIM_PLAYER_SLIDE_SHOOT = 5;
 	const int ANIM_PLAYER_JUMP_SHOOT = 6;
+	const int ANIM_PLAYER_PRONE = 7;
+	const int ANIM_PLAYER_PRONE_SHOOT = 8;
 	std::vector<Animation> playerAnims;
 
 	const int ANIM_BULLET_MOVING = 0;
@@ -82,7 +93,7 @@ struct Resources
 	std::vector<SDL_Texture*> textures;
 	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex,
 		* Bg2tex, * Bg3tex, * Bg4tex, * fogtex, * bullettex, * bulletHittex,
-		* shoottex, * runShoottex, * slideshoottex, * jumpShoottex,
+		* shoottex, * runShoottex, * slideshoottex, * jumpShoottex, *pronetex,*proneShoottex,
 		* enemytex, * enemyHittex, * enemydietex;
 
 	SDL_Texture* loadTextures(SDL_Renderer* renderer, const std::string& filepath)
@@ -97,7 +108,7 @@ struct Resources
 
 	void load(SDLState& state)
 	{
-		playerAnims.resize(7);
+		playerAnims.resize(9);
 		//IDLE ANIMATION
 		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.3f);
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\idle.png");
@@ -113,6 +124,12 @@ struct Resources
 		//SLIDING ANIMATION
 		playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 1.0f);
 		slidetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\slide.png");
+
+		//Prone Animation
+		playerAnims[ANIM_PLAYER_PRONE] = Animation(1,0.4f);
+		pronetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\prone.png");
+		playerAnims[ANIM_PLAYER_PRONE_SHOOT] = Animation(4, 0.4f);
+		proneShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\proneshoot.png");
 
 		//Level Textures
 		grasstex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\GRASS.png");
@@ -150,7 +167,7 @@ struct Resources
 		enemytex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Enemy\\Enemyidle.png");
 		enemyAnims[ANIM_ENEMY_HIT] = Animation(1, 0.7f);
 		enemyHittex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Enemy\\EnemyHit.png");
-		enemyAnims[ANIM_ENEMY_DEATH] = Animation(8, 2.0f);
+		enemyAnims[ANIM_ENEMY_DEATH] = Animation(8, 1.5f);
 		enemydietex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Enemy\\EnemyDeath.png");
 
 	}
@@ -251,18 +268,23 @@ struct Resources
 					{
 						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_K, true);
 					}
+					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN)
+					{
+						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_S, true);
+					}
 
 					break;
+				}
+				case SDL_EVENT_GAMEPAD_BUTTON_UP:
+				{
+					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN)
+					{
+						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_S, false);
+					}
 				}
 				case SDL_EVENT_GAMEPAD_ADDED:
 				{
 					state.gamepad = SDL_OpenGamepad(event.gdevice.which);
-
-					if (state.gamepad)
-					{
-						SDL_Log("Xbox Controller Connected!");
-					}
-
 					break;
 				}
 				case SDL_EVENT_GAMEPAD_REMOVED:
@@ -272,8 +294,6 @@ struct Resources
 						SDL_CloseGamepad(state.gamepad);
 						state.gamepad = nullptr;
 					}
-
-					SDL_Log("Controller Disconnected!");
 					break;
 				}
 				}
@@ -296,7 +316,7 @@ struct Resources
 			}
 
 			//Calculate Map Viewport Based on Player Position
-			gs.mapViewport.x = (gs.player().position.x) - gs.mapViewport.w / 3;
+			gs.mapViewport.x = gs.player().position.x - state.logW / 3.0f;
 
 
 			// Perform Drawing Operations
@@ -316,7 +336,7 @@ struct Resources
 			drawParallax(state.renderer, res.Bg4tex, gs.player().velocity.x, gs.bg4Scroll, 0.06f, deltaTime);
 			drawParallax(state.renderer, res.Bg3tex, gs.player().velocity.x, gs.bg3Scroll, 0.20f, deltaTime);
 			drawParallax(state.renderer, res.Bg2tex, gs.player().velocity.x, gs.bg2Scroll, 0.40f, deltaTime);
-			drawParallax(state.renderer, res.fogtex, gs.player().velocity.x, gs.bgfog, 0.13f, deltaTime);
+			drawParallax(state.renderer, res.fogtex, gs.player().velocity.x, gs.bgfog, 0.0f, deltaTime);
 
 			//Draw Background Tiles
 			for (GameObject& obj : gs.backgroundTiles)
@@ -331,7 +351,6 @@ struct Resources
 
 			}
 
-			
 
 
 			//Draw all Objects
@@ -602,11 +621,13 @@ struct Resources
 				moveRight |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
 			}
 
-			if (moveLeft)
+			if (moveLeft && obj.data.player.state != PlayerState::prone)
 				currdirection -= 1;
 
-			if (moveRight)
+			if (moveRight && obj.data.player.state != PlayerState::prone)
 				currdirection += 1;
+
+
 
 			Timer& weaponTimer = obj.data.player.weaponTimer;
 			weaponTimer.step(deltaTime / 3); //Rate Of Shooting
@@ -641,20 +662,27 @@ struct Resources
 								.w = bulletSize,
 								.h = bulletSize
 							};
+
+							float bulletheight = -(2.65f);    //Lower the value Higher the Height
+							int yVariation = 50; //Recoil
 							bullet.MaxSpeedX = 1000.0f;
-							const int yVariation = 50; //Recoil
+							if (obj.data.player.state == PlayerState::prone)
+							{
+								bulletheight = 12.0f;
+								yVariation = 0; //Recoil
+							}
 							const float yVelocity = SDL_rand(yVariation) - yVariation / 2.0f;
 							bullet.velocity = glm::vec2(obj.velocity.x + 500.0f * obj.direction, yVelocity);
 							bullet.animations = res.bulletAnims;
 
 							//Adjust bullet Start
+							
 							const float left = -20;
 							const float right = 40;
 							const float t = (obj.direction + 1) / 2.0f;
 							const float xOffset = left + right * t;
 							bullet.position = glm::vec2(obj.position.x + xOffset,
-								obj.position.y - 2.67);
-
+								obj.position.y + bulletheight);
 
 							bool foundInactive = false;
 							for (int i = 0;i < gs.bullets.size() && !foundInactive;i++)
@@ -720,18 +748,26 @@ struct Resources
 				}
 
 				else
-					//Running Animation
+				//Running Animation
 				{
 					handleShooting(res.runtex, res.runShoottex, res.ANIM_PLAYER_RUNNING, res.ANIM_PLAYER_RUNNING);
 				}
 				break;
-			}
+				}
 
-			case PlayerState::jumping:
-			{
-				handleShooting(res.jumptex, res.jumpShoottex, res.ANIM_PLAYER_JUMPING, res.ANIM_PLAYER_JUMP_SHOOT);
-				break;
-			}
+				case PlayerState::jumping:
+				{
+					handleShooting(res.jumptex, res.jumpShoottex, res.ANIM_PLAYER_JUMPING, res.ANIM_PLAYER_JUMP_SHOOT);
+					break;
+				}
+
+				case PlayerState::prone:
+				{
+					handleShooting(res.pronetex, res.proneShoottex, res.ANIM_PLAYER_PRONE, res.ANIM_PLAYER_PRONE_SHOOT);
+					//Stops Moving While Prone
+					obj.velocity.x = 0.0f;
+					break;
+				}
 			}
 
 		}
@@ -808,7 +844,7 @@ struct Resources
 		{
 			obj.direction = currdirection;
 		}
-		//Add Acceleration Based on Direction
+		//Add Acceleration Based on Direction (Horizontal)
 		obj.velocity += currdirection * obj.acceleration * deltaTime;
 		if (std::abs(obj.velocity.x) > obj.MaxSpeedX)
 		{
@@ -894,16 +930,28 @@ struct Resources
 				}
 			};
 
-		//Object We Are Checking
+		//Objects We Are Checking
 		if (objA.type == ObjectType::player)
 		{
 			//What we are Colliding With
 			switch (objB.type)
 			{
-			case ObjectType::level:
+				case ObjectType::level:
 				{
-				genericResponse();
-				break;
+					genericResponse();
+					break;
+				}
+
+				case ObjectType::enemy:
+				{
+					if (objB.data.enemy.state != EnemyState::dead)
+					{
+						// Enemy stays where it is.
+						// Push/stop the PLAYER.
+						genericResponse();
+					}
+
+					break;
 				}
 			}
 		}
@@ -967,6 +1015,7 @@ struct Resources
 		{
 			genericResponse();
 		}
+
 	}
 
 	void checkCollision(const SDLState& state, GameState& gs, Resources& res, GameObject& a, GameObject& b, float deltaTime)
@@ -1009,8 +1058,8 @@ struct Resources
 
 		short map[MAP_ROWS][MAP_COLS] = {
 			0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,4,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,2,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,4,0,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,6,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,1,2,1,2,1,1,2,1,1,2,1,1,2,2,1,1,2,2,1,1,2,1,2,2,1,1,2,1,2,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 		};
@@ -1018,8 +1067,8 @@ struct Resources
 		short foreground[MAP_ROWS][MAP_COLS] = {
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 		};
 
@@ -1027,7 +1076,7 @@ struct Resources
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,0,0,0,0,0,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 		};
 
@@ -1086,12 +1135,7 @@ struct Resources
 							player.animations = res.playerAnims;
 							player.currentAnimation = res.ANIM_PLAYER_IDLE;
 							player.dynamic = true;
-							player.collider = {
-								.x = 9,
-								.y = 2,
-								.w = 14,
-								.h = 30
-							};
+							player.collider =player.collider = PLAYER_STANDING_COLLIDER;
 							gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
 							gs.playerIdx = gs.layers[LAYER_IDX_CHARACTERS].size() - 1;
 							break;
@@ -1108,13 +1152,13 @@ struct Resources
 							GameObject enemy = createObject(r, c, res.enemytex, ObjectType::enemy);
 							enemy.data.enemy = EnemyData();
 							enemy.dynamic = true;
-							enemy.MaxSpeedX = 80;
+							enemy.MaxSpeedX = 30.0f;
 							enemy.currentAnimation = res.ANIM_ENEMY_IDLE;
 							enemy.animations = res.enemyAnims;
 							enemy.collider = SDL_FRect{
 								.x = 10,
 								.y = -4,
-								.w = 22,
+								.w = 18,
 								.h = 36
 							};
 							gs.layers[LAYER_IDX_CHARACTERS].push_back(enemy);
@@ -1145,6 +1189,23 @@ struct Resources
 					obj.data.player.state = PlayerState::jumping;
 					obj.velocity.y += JUMP_FORCE;
 				}
+
+				if (key == SDL_SCANCODE_S && keyDown)
+				{
+					obj.data.player.state = PlayerState::prone;
+					obj.collider = PLAYER_PRONE_COLLIDER;
+				}
+				break;
+			}
+
+			case PlayerState::prone:
+			{
+				if (key == SDL_SCANCODE_S && !keyDown)
+				{
+					obj.data.player.state = PlayerState::idle;
+					obj.collider = PLAYER_STANDING_COLLIDER;
+				}
+
 				break;
 			}
 
@@ -1154,6 +1215,11 @@ struct Resources
 				{
 					obj.data.player.state = PlayerState::jumping;
 					obj.velocity.y += JUMP_FORCE;
+				}
+
+				if (key == SDL_SCANCODE_S && keyDown)
+				{
+					obj.data.player.state = PlayerState::prone;
 				}
 				break;
 			}
