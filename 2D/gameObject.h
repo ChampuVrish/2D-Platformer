@@ -10,7 +10,8 @@ enum class PlayerState
 	running,
 	jumping,
 	sliding,
-	prone
+	prone,
+	dead
 };
 
 struct PlayerData
@@ -92,6 +93,8 @@ struct GameObject
 	Timer FlashTimer;
 	bool ShouldFlash;
 	int SpriteFrame;
+	bool isAlive;
+	int playerHP;
 
 
 	GameObject() : data{ .level = LevelData() }, collider{ 0 }, FlashTimer(0.05f)
@@ -106,5 +109,7 @@ struct GameObject
 		grounded = false;
 		ShouldFlash = false;
 		SpriteFrame = 1;
+		isAlive = true;
+		playerHP = 1;
 	}
 };

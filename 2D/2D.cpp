@@ -1,4 +1,5 @@
 ﻿#include <SDL3/SDL.h>
+#include <iostream>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
 #include <vector>
@@ -21,7 +22,6 @@ struct SDLState
 
 	SDLState() : keys(SDL_GetKeyboardState(nullptr))
 	{
-
 	}
 };
 
@@ -31,6 +31,7 @@ const size_t LAYER_IDX_CHARACTERS = 1;
 const int MAP_ROWS = 5;
 const int MAP_COLS = 50;
 const int TILE_SIZE = 32;
+bool canprone = true;
 
 //Player Collision Box
 const SDL_FRect PLAYER_STANDING_COLLIDER{
@@ -77,6 +78,7 @@ struct Resources
 	const int ANIM_PLAYER_JUMP_SHOOT = 6;
 	const int ANIM_PLAYER_PRONE = 7;
 	const int ANIM_PLAYER_PRONE_SHOOT = 8;
+	const int ANIM_PLAYER_DEATH = 9;
 	std::vector<Animation> playerAnims;
 
 	const int ANIM_BULLET_MOVING = 0;
@@ -94,7 +96,7 @@ struct Resources
 	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex,
 		* Bg2tex, * Bg3tex, * Bg4tex, * fogtex, * bullettex, * bulletHittex,
 		* shoottex, * runShoottex, * slideshoottex, * jumpShoottex, *pronetex,*proneShoottex,
-		* enemytex, * enemyHittex, * enemydietex;
+		* enemytex, * enemyHittex, * enemydietex, * playerdeadtex;
 
 	SDL_Texture* loadTextures(SDL_Renderer* renderer, const std::string& filepath)
 	{
@@ -108,7 +110,7 @@ struct Resources
 
 	void load(SDLState& state)
 	{
-		playerAnims.resize(9);
+		playerAnims.resize(10);
 		//IDLE ANIMATION
 		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.3f);
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\idle.png");
@@ -130,6 +132,10 @@ struct Resources
 		pronetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\prone.png");
 		playerAnims[ANIM_PLAYER_PRONE_SHOOT] = Animation(4, 0.4f);
 		proneShoottex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\proneshoot.png");
+
+		//Player Death
+		playerAnims[ANIM_PLAYER_DEATH] = Animation(4, 0.9f);
+		playerdeadtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\playerdead.png");
 
 		//Level Textures
 		grasstex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\GRASS.png");
@@ -599,6 +605,20 @@ struct Resources
 			obj.animations[obj.currentAnimation].step(deltaTime);
 		}
 
+		// Death Animtion Should Play Once
+		if (obj.type == ObjectType::player &&
+			!obj.isAlive &&
+			obj.currentAnimation == res.ANIM_PLAYER_DEATH)
+		{
+			if (obj.animations[obj.currentAnimation].isDone())
+			{
+				obj.currentAnimation = -1;   // Stop animation.
+				obj.SpriteFrame = 4;         // Last death frame.
+			}
+
+			return; // Player is dead, don't run movement code below.
+		}
+
 		if (obj.dynamic && !obj.grounded) {
 			//Apply Gravity
 			obj.velocity += glm::vec2(0, 500) * deltaTime;
@@ -610,24 +630,36 @@ struct Resources
 		{
 			// Update player-specific logic......For example, handle input, movement, etc.
 
-			//KeyBoard Keys
-			bool moveLeft = state.keys[SDL_SCANCODE_A];
-			bool moveRight = state.keys[SDL_SCANCODE_D];
-
-			if (state.gamepad)
+			// Player is dead -> freeze completely.
+			if (!obj.isAlive)
 			{
-				//GamePad Keys
-				moveLeft |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
-				moveRight |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+				obj.direction = 0;
+				obj.velocity = glm::vec2(0.0f);
+				obj.acceleration = glm::vec2(0.0f);
+				canprone = false;
 			}
 
-			if (moveLeft && obj.data.player.state != PlayerState::prone)
-				currdirection -= 1;
+			//KeyBoard Keys
 
-			if (moveRight && obj.data.player.state != PlayerState::prone)
-				currdirection += 1;
+			if (obj.isAlive) 
+			{
+				bool moveLeft = state.keys[SDL_SCANCODE_A];
+				bool moveRight = state.keys[SDL_SCANCODE_D];
 
+				if (state.gamepad)
+				{
+					//GamePad Keys
+					moveLeft |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+					moveRight |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+				}
 
+				if (moveLeft && obj.data.player.state != PlayerState::prone)
+					currdirection -= 1;
+
+				if (moveRight && obj.data.player.state != PlayerState::prone)
+					currdirection += 1;
+
+			}
 
 			Timer& weaponTimer = obj.data.player.weaponTimer;
 			weaponTimer.step(deltaTime / 3); //Rate Of Shooting
@@ -802,6 +834,25 @@ struct Resources
 				case EnemyState::shambling:
 				{
 					glm::vec2 playerdir = gs.player().position - obj.position;
+					// Kill player when enemy is very close.
+					cout << glm::length(playerdir) << endl;
+					if (glm::length(playerdir) <= 20 && gs.player().isAlive)
+					{
+						cout << "Player Dead" << endl;
+
+						gs.player().playerHP = 0;
+						gs.player().isAlive = false;
+						gs.player().data.player.state = PlayerState::dead;
+						if (!gs.player().isAlive)
+						{
+							
+							gs.player().texture = res.playerdeadtex;
+							gs.player().currentAnimation = res.ANIM_PLAYER_DEATH; // Your death animation.
+							gs.player().velocity = glm::vec2(0.0f);
+							gs.player().acceleration = glm::vec2(0.0f);
+							return;   // Stop updating the player completely.
+						}
+					}
 					if (glm::length(playerdir) < responseDistance)
 					{
 						currdirection = playerdir.x < 0 ? -1 : 1;
@@ -1124,6 +1175,7 @@ struct Resources
 						{
 							//Our Player
 							GameObject player = createObject(r, c, res.idletex, ObjectType::player);
+
 							//Postion
 							player.position = glm::vec2(
 								c * TILE_SIZE,
@@ -1190,7 +1242,7 @@ struct Resources
 					obj.velocity.y += JUMP_FORCE;
 				}
 
-				if (key == SDL_SCANCODE_S && keyDown)
+				if (key == SDL_SCANCODE_S && keyDown && canprone)
 				{
 					obj.data.player.state = PlayerState::prone;
 					obj.collider = PLAYER_PRONE_COLLIDER;
@@ -1200,7 +1252,7 @@ struct Resources
 
 			case PlayerState::prone:
 			{
-				if (key == SDL_SCANCODE_S && !keyDown)
+				if (key == SDL_SCANCODE_S && !keyDown && canprone)
 				{
 					obj.data.player.state = PlayerState::idle;
 					obj.collider = PLAYER_STANDING_COLLIDER;
