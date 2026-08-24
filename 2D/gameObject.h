@@ -18,6 +18,8 @@ struct PlayerData
 {
 	PlayerState state;
 	Timer weaponTimer;
+	bool onLadder = false;
+	bool climbing = false;
 	PlayerData() : weaponTimer(0.1f)
 	{
 		state = PlayerState::idle;
@@ -73,7 +75,7 @@ union ObjectData
 
 enum class ObjectType
 {
-	player,enemy,level,bullet
+	player,enemy,level,bullet,ladder
 };
 
 

@@ -93,7 +93,7 @@ struct Resources
 	//TEXTURE MAPPING
 
 	std::vector<SDL_Texture*> textures;
-	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex,
+	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex,* laddertex,
 		* Bg2tex, * Bg3tex, * Bg4tex, * fogtex, * bullettex, * bulletHittex,
 		* shoottex, * runShoottex, * slideshoottex, * jumpShoottex, *pronetex,*proneShoottex,
 		* enemytex, * enemyHittex, * enemydietex, * playerdeadtex;
@@ -142,6 +142,8 @@ struct Resources
 		bricktex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\BRICK.png");
 		metaltex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\METAL.png");
 		groundtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\GROUND.png");
+		laddertex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\ladderres.png");
+
 		//Backrounds
 		BGtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG1.png");
 		Bg2tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG2.png");
@@ -378,6 +380,11 @@ struct Resources
 					{
 						RenderW = 410.0f;
 						RenderH = 493.0f;
+					}
+					if (obj.type == ObjectType::ladder)
+					{
+						RenderW = 613.0f;
+						RenderH = 800.0f;
 					}
 					drawObject(state, gs, obj, RenderW, RenderH, deltaTime);
 				}
@@ -984,6 +991,9 @@ struct Resources
 		//Objects We Are Checking
 		if (objA.type == ObjectType::player)
 		{
+			// Reset every frame before checking collisions.
+			objA.data.player.onLadder = false;
+
 			//What we are Colliding With
 			switch (objB.type)
 			{
@@ -1002,6 +1012,11 @@ struct Resources
 						genericResponse();
 					}
 
+					break;
+				}
+				case ObjectType::ladder:
+				{
+					objA.data.player.onLadder = true;
 					break;
 				}
 			}
@@ -1104,14 +1119,15 @@ struct Resources
 			4 - Player
 			5 - Grass
 			6 - Enemy
+			7 - Ladder
 
 		*/
 
 		short map[MAP_ROWS][MAP_COLS] = {
-			0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,4,0,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,6,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,0,0,0,0,7,2,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,0,0,0,0,0,7,2,2,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,4,0,0,0,0,0,7,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,0,2,1,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,1,2,1,2,1,1,2,1,1,2,1,1,2,2,1,1,2,2,1,1,2,1,2,2,1,1,2,1,2,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 		};
 
@@ -1215,6 +1231,19 @@ struct Resources
 							};
 							gs.layers[LAYER_IDX_CHARACTERS].push_back(enemy);
 							break;
+						}
+						case 7: //Ladder
+						{
+							GameObject ladder = createObject(r, c, res.laddertex, ladder.type = ObjectType::ladder);
+  
+							ladder.dynamic = false;
+							ladder.grounded = false;
+							//collider
+							ladder.collider.x = ladder.position.x;
+							ladder.collider.y = ladder.position.y;
+							ladder.collider.w = 20;
+							ladder.collider.h = 20;
+							gs.layers[LAYER_IDX_LEVEL].push_back(ladder);
 						}
 						}
 					}
