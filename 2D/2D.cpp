@@ -78,7 +78,8 @@ struct Resources
 	const int ANIM_PLAYER_JUMP_SHOOT = 6;
 	const int ANIM_PLAYER_PRONE = 7;
 	const int ANIM_PLAYER_PRONE_SHOOT = 8;
-	const int ANIM_PLAYER_DEATH = 9;
+	const int ANIM_PLAYER_LADDER_CLIMBING = 9;
+	const int ANIM_PLAYER_DEATH = 10;
 	std::vector<Animation> playerAnims;
 
 	const int ANIM_BULLET_MOVING = 0;
@@ -93,7 +94,7 @@ struct Resources
 	//TEXTURE MAPPING
 
 	std::vector<SDL_Texture*> textures;
-	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex,* laddertex,
+	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex, * laddertex, *ladderclimbingtex,
 		* Bg2tex, * Bg3tex, * Bg4tex, * fogtex, * bullettex, * bulletHittex,
 		* shoottex, * runShoottex, * slideshoottex, * jumpShoottex, *pronetex,*proneShoottex,
 		* enemytex, * enemyHittex, * enemydietex, * playerdeadtex;
@@ -110,7 +111,7 @@ struct Resources
 
 	void load(SDLState& state)
 	{
-		playerAnims.resize(10);
+		playerAnims.resize(11);
 		//IDLE ANIMATION
 		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.3f);
 		idletex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\idle.png");
@@ -136,6 +137,10 @@ struct Resources
 		//Player Death
 		playerAnims[ANIM_PLAYER_DEATH] = Animation(4, 0.9f);
 		playerdeadtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\playerdead.png");
+
+		//Climbing
+		playerAnims[ANIM_PLAYER_LADDER_CLIMBING] = Animation(1, 1.0f);
+		ladderclimbingtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Player\\ladderclimbing.png");
 
 		//Level Textures
 		grasstex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\GRASS.png");
@@ -606,6 +611,7 @@ struct Resources
 
 	void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime)
 	{
+		obj.data.player.touchingLadder = false;
 		//Update Animation
 		if (obj.currentAnimation != -1)
 		{
@@ -626,7 +632,8 @@ struct Resources
 			return; // Player is dead, don't run movement code below.
 		}
 
-		if (obj.dynamic && !obj.grounded) {
+
+		if (obj.dynamic && !obj.grounded && !obj.data.player.touchingLadder) {
 			//Apply Gravity
 			obj.velocity += glm::vec2(0, 500) * deltaTime;
 		}
@@ -638,7 +645,7 @@ struct Resources
 			// Update player-specific logic......For example, handle input, movement, etc.
 
 			// Player is dead -> freeze completely.
-			if (!obj.isAlive)
+			if (!obj.isAlive && obj.data.player.state != PlayerState::onLadder)
 			{
 				obj.direction = 0;
 				obj.velocity = glm::vec2(0.0f);
@@ -646,9 +653,9 @@ struct Resources
 				canprone = false;
 			}
 
-			//KeyBoard Keys
+			//KeyBoard And Gamepad Keys
 
-			if (obj.isAlive) 
+			if (obj.isAlive && obj.data.player.state != PlayerState::onLadder)
 			{
 				bool moveLeft = state.keys[SDL_SCANCODE_A];
 				bool moveRight = state.keys[SDL_SCANCODE_D];
@@ -671,7 +678,7 @@ struct Resources
 			Timer& weaponTimer = obj.data.player.weaponTimer;
 			weaponTimer.step(deltaTime / 3); //Rate Of Shooting
 			const auto handleShooting = [&state, &gs, &res, &obj, &weaponTimer](SDL_Texture* tex, SDL_Texture* shootTex, int animIndex, int shootAnimIndex)
-				{
+			{
 					//Shoot Key 
 					bool shootPressed = state.keys[SDL_SCANCODE_J];
 					if (state.gamepad)
@@ -742,7 +749,7 @@ struct Resources
 						obj.texture = tex;
 						obj.currentAnimation = animIndex;
 					}
-				};
+			};
 
 			switch (obj.data.player.state)
 			{
@@ -802,11 +809,42 @@ struct Resources
 
 				case PlayerState::prone:
 				{
+					
 					handleShooting(res.pronetex, res.proneShoottex, res.ANIM_PLAYER_PRONE, res.ANIM_PLAYER_PRONE_SHOOT);
 					//Stops Moving While Prone
 					obj.velocity.x = 0.0f;
 					break;
 				}
+				case PlayerState::onLadder:
+				{
+					obj.texture = res.ladderclimbingtex;
+					obj.currentAnimation = res.ANIM_PLAYER_LADDER_CLIMBING;
+					cout << "Can Climb" << endl;
+					obj.velocity.x = 0;
+					const float climbSpeed = 120.0f;
+					bool climbup = state.keys[SDL_SCANCODE_W];
+					bool climbdown = state.keys[SDL_SCANCODE_S];
+
+					if (state.gamepad)
+					{
+						//GamePad Keys
+						climbup |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_UP);
+						climbdown |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+					}
+
+					if (climbup)
+					{
+						obj.velocity.y = -climbSpeed;
+					}
+					else if (climbdown)
+					{
+						obj.velocity.y = climbSpeed;
+					}
+					else
+						obj.velocity.y = 0;
+					break;
+				}
+				
 			}
 
 		}
@@ -842,7 +880,7 @@ struct Resources
 				{
 					glm::vec2 playerdir = gs.player().position - obj.position;
 					// Kill player when enemy is very close.
-					cout << glm::length(playerdir) << endl;
+					//cout << glm::length(playerdir) << endl;
 					if (glm::length(playerdir) <= 20 && gs.player().isAlive)
 					{
 						cout << "Player Dead" << endl;
@@ -921,6 +959,7 @@ struct Resources
 				if (&obj != &objB) {
 					checkCollision(state, gs, res, obj, objB, deltaTime);
 
+
 					//Grounded Sensor
 					if (objB.type == ObjectType::level)
 					{
@@ -947,16 +986,33 @@ struct Resources
 			}
 		}
 
+		// ================= LEAVE LADDER =================
+
+		if (obj.type == ObjectType::player &&
+			obj.data.player.state == PlayerState::onLadder &&
+			!obj.data.player.touchingLadder)
+		{
+			obj.data.player.state = foundGround
+				? PlayerState::idle
+				: PlayerState::jumping;
+		}
+
+
 		if (obj.grounded != foundGround)
 		{
 			//Switching Grounded State
 			obj.grounded = foundGround;
-			if (foundGround && obj.type == ObjectType::player)
+			if (foundGround && obj.type == ObjectType::player &&
+				obj.data.player.state != PlayerState::onLadder &&
+				obj.data.player.state != PlayerState::dead)
 			{
-				obj.data.player.state = PlayerState::running;
+				obj.data.player.state =
+					(currdirection != 0) ? PlayerState::running : PlayerState::idle;
 			}
 		}
 	}
+
+
 
 	void CollisionResponse(const SDLState& state, GameState& gs, Resources& res, const SDL_FRect& rectA,
 		const SDL_FRect& rectB, const SDL_FRect& rectC,
@@ -991,9 +1047,7 @@ struct Resources
 		//Objects We Are Checking
 		if (objA.type == ObjectType::player)
 		{
-			// Reset every frame before checking collisions.
-			objA.data.player.onLadder = false;
-
+			
 			//What we are Colliding With
 			switch (objB.type)
 			{
@@ -1016,7 +1070,14 @@ struct Resources
 				}
 				case ObjectType::ladder:
 				{
-					objA.data.player.onLadder = true;
+					
+					objA.data.player.touchingLadder = true;
+
+					if (objA.data.player.state != PlayerState::dead)
+					{
+						objA.data.player.state = PlayerState::onLadder;
+					}
+
 					break;
 				}
 			}
@@ -1126,7 +1187,7 @@ struct Resources
 		short map[MAP_ROWS][MAP_COLS] = {
 			0,0,0,0,0,0,0,0,0,7,2,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,0,0,0,0,0,7,2,2,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-			0,0,0,4,0,0,0,0,0,7,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+			0,0,0,4,0,0,6,0,0,0,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,0,0,0,2,1,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 			0,1,2,1,2,1,1,2,1,1,2,1,1,2,2,1,1,2,2,1,1,2,1,2,2,1,1,2,1,2,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 		};
@@ -1234,16 +1295,20 @@ struct Resources
 						}
 						case 7: //Ladder
 						{
+
 							GameObject ladder = createObject(r, c, res.laddertex, ladder.type = ObjectType::ladder);
-  
+								
 							ladder.dynamic = false;
 							ladder.grounded = false;
 							//collider
-							ladder.collider.x = ladder.position.x;
-							ladder.collider.y = ladder.position.y;
-							ladder.collider.w = 20;
-							ladder.collider.h = 20;
+							ladder.collider = SDL_FRect{
+								.x = 25,
+								.y = 7.0f,
+								.w = 5.0f,
+								.h = 18
+							};
 							gs.layers[LAYER_IDX_LEVEL].push_back(ladder);
+							break;
 						}
 						}
 					}
@@ -1271,7 +1336,7 @@ struct Resources
 					obj.velocity.y += JUMP_FORCE;
 				}
 
-				if (key == SDL_SCANCODE_S && keyDown && canprone)
+				if (key == SDL_SCANCODE_S && keyDown && canprone && obj.grounded)
 				{
 					obj.data.player.state = PlayerState::prone;
 					obj.collider = PLAYER_PRONE_COLLIDER;

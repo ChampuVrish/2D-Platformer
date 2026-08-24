@@ -10,16 +10,17 @@ enum class PlayerState
 	running,
 	jumping,
 	sliding,
+	falling,
 	prone,
-	dead
+	dead,
+	onLadder,
 };
 
 struct PlayerData
 {
 	PlayerState state;
 	Timer weaponTimer;
-	bool onLadder = false;
-	bool climbing = false;
+	bool touchingLadder = false;
 	PlayerData() : weaponTimer(0.1f)
 	{
 		state = PlayerState::idle;
@@ -92,6 +93,7 @@ struct GameObject
 	bool dynamic;
 	bool grounded;
 	SDL_FRect collider;
+	SDL_FRect topCollider;
 	Timer FlashTimer;
 	bool ShouldFlash;
 	int SpriteFrame;
