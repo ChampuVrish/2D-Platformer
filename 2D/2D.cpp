@@ -2,6 +2,7 @@
 #include <iostream>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
@@ -13,7 +14,7 @@ using namespace std;
 
 
 struct SDLState
-{
+{	
 	SDL_Gamepad* gamepad = nullptr;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
@@ -45,6 +46,7 @@ const SDL_FRect PLAYER_PRONE_COLLIDER{
 
 struct GameState
 {
+	bool paused = false;
 	std::array<std::vector<GameObject>, 2> layers;
 	std::vector<GameObject> backgroundTiles;
 	std::vector<GameObject> foregroundTiles;
@@ -90,6 +92,8 @@ struct Resources
 	const int ANIM_ENEMY_HIT = 1;
 	const int ANIM_ENEMY_DEATH = 2;
 	std::vector<Animation> enemyAnims;
+
+	TTF_Font* pauseFont = TTF_OpenFont("assets/font.ttf", 72); // Big size
 
 	//TEXTURE MAPPING
 
@@ -147,7 +151,7 @@ struct Resources
 		bricktex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\BRICK.png");
 		metaltex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\METAL.png");
 		groundtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\GROUND.png");
-		laddertex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\ladderres.png");
+		laddertex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Tiles\\ladder.png");
 
 		//Backrounds
 		BGtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG1.png");
@@ -207,6 +211,10 @@ struct Resources
 
 	int main(int argc, char* argv[])
 	{
+		if (!TTF_Init())
+		{
+			cout << "TTF Init Failed: " << SDL_GetError() << endl;
+		}
 
 		SDLState state;
 		state.width = 1600;
@@ -235,6 +243,7 @@ struct Resources
 
 		//Start The Game Loop
 		bool running = true;
+
 
 		while (running)
 		{
@@ -277,6 +286,11 @@ struct Resources
 					{
 						gs.debugMode = !gs.debugMode;
 					}
+					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_START)
+					{
+						gs.paused = !gs.paused;
+						cout << "START PRESSED" << endl;
+					}
 					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH)
 					{
 						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_K, true);
@@ -285,7 +299,6 @@ struct Resources
 					{
 						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_S, true);
 					}
-
 					break;
 				}
 				case SDL_EVENT_GAMEPAD_BUTTON_UP:
@@ -294,6 +307,7 @@ struct Resources
 					{
 						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_S, false);
 					}
+					
 				}
 				case SDL_EVENT_GAMEPAD_ADDED:
 				{
@@ -335,6 +349,7 @@ struct Resources
 			// Perform Drawing Operations
 			SDL_SetRenderDrawColor(state.renderer, 0, 0, 0, 255);
 			SDL_RenderClear(state.renderer);
+			 
 
 
 			//Draw Background
@@ -365,7 +380,6 @@ struct Resources
 			}
 
 
-
 			//Draw all Objects
 			for (std::vector<GameObject>& layer : gs.layers)
 			{
@@ -388,8 +402,8 @@ struct Resources
 					}
 					if (obj.type == ObjectType::ladder)
 					{
-						RenderW = 613.0f;
-						RenderH = 800.0f;
+						RenderW = 431.0f;
+						RenderH = 485.0f;
 					}
 					drawObject(state, gs, obj, RenderW, RenderH, deltaTime);
 				}
@@ -436,8 +450,9 @@ struct Resources
 
 		}
 
-		//Unloading
+		TTF_Quit();
 
+		//Unloading
 		res.unload();
 		cleanup(state);
 		return 0;
@@ -611,7 +626,17 @@ struct Resources
 
 	void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime)
 	{
-		obj.data.player.touchingLadder = false;
+		if (gs.paused) {
+
+			// Clear any held movement when pausing.
+			gs.player().velocity.x = 0.0f;
+			gs.player().velocity.y = 0.0f;
+			return;
+		}
+
+		if (obj.type == ObjectType::player) {
+			obj.data.player.touchingLadder = false;
+		}
 		//Update Animation
 		if (obj.currentAnimation != -1)
 		{
@@ -633,9 +658,35 @@ struct Resources
 		}
 
 
-		if (obj.dynamic && !obj.grounded && !obj.data.player.touchingLadder) {
-			//Apply Gravity
-			obj.velocity += glm::vec2(0, 500) * deltaTime;
+		// ================= APPLY GRAVITY =================
+		if (obj.dynamic && !obj.grounded)
+		{
+			switch (obj.type)
+			{
+			case ObjectType::player:
+			{
+				// Player doesn't fall while on a ladder.
+				if (obj.data.player.state != PlayerState::onLadder)
+				{
+					obj.velocity += glm::vec2(0, 500) * deltaTime;
+				}
+				break;
+			}
+
+			case ObjectType::enemy:
+			{
+				// Enemy always gets gravity.
+				obj.velocity += glm::vec2(0, 500) * deltaTime;
+				break;
+			}
+
+			default:
+			{
+				// Bullets or other dynamic objects.
+				obj.velocity += glm::vec2(0, 500) * deltaTime;
+				break;
+			}
+			}
 		}
 
 		float currdirection = 0;
@@ -644,7 +695,7 @@ struct Resources
 		{
 			// Update player-specific logic......For example, handle input, movement, etc.
 
-			// Player is dead -> freeze completely.
+			// Player is dead -> Controls freeze completely.
 			if (!obj.isAlive && obj.data.player.state != PlayerState::onLadder)
 			{
 				obj.direction = 0;
@@ -1108,7 +1159,9 @@ struct Resources
 							objB.currentAnimation = res.ANIM_ENEMY_HIT;
 							objB.data.enemy.Enemyhealth -= 10;				//Bullet Damage per Shot
 							d.state = EnemyState::damaged;
-
+							cout << "Bullet hit! Bullet = " << &objA
+								<< " Enemy = " << &objB
+								<< " HP = " << d.Enemyhealth << endl;
 							//Dead Condition
 							if (d.Enemyhealth <= 0)
 							{
@@ -1302,9 +1355,9 @@ struct Resources
 							ladder.grounded = false;
 							//collider
 							ladder.collider = SDL_FRect{
-								.x = 25,
+								.x = 30,
 								.y = 7.0f,
-								.w = 5.0f,
+								.w = 2.0f,
 								.h = 18
 							};
 							gs.layers[LAYER_IDX_LEVEL].push_back(ladder);
@@ -1322,6 +1375,22 @@ struct Resources
 
 	void handlekeyinput(const SDLState& state, GameState& gs, GameObject& obj, SDL_Scancode key, bool keyDown)
 	{
+		//=========== PAUSE GAME ==============
+		static bool escPressed = false;
+		bool PauseButton = state.keys[SDL_SCANCODE_ESCAPE];
+		if (state.keys[SDL_SCANCODE_ESCAPE])
+		{
+			if (!escPressed)
+			{
+				gs.paused = !gs.paused;
+				escPressed = true;
+			}
+		}
+		else
+		{
+			escPressed = false;
+		}
+
 		const float JUMP_FORCE = -220.0f;
 
 		if (obj.type == ObjectType::player)
