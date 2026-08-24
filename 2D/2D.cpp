@@ -2,7 +2,6 @@
 #include <iostream>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
-#include <SDL3_ttf/SDL_ttf.h>
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
@@ -47,6 +46,8 @@ const SDL_FRect PLAYER_PRONE_COLLIDER{
 struct GameState
 {
 	bool paused = false;
+	bool pauseClosing = false;
+	float pauseMenuY = -300.0f;
 	std::array<std::vector<GameObject>, 2> layers;
 	std::vector<GameObject> backgroundTiles;
 	std::vector<GameObject> foregroundTiles;
@@ -93,12 +94,11 @@ struct Resources
 	const int ANIM_ENEMY_DEATH = 2;
 	std::vector<Animation> enemyAnims;
 
-	TTF_Font* pauseFont = TTF_OpenFont("assets/font.ttf", 72); // Big size
 
 	//TEXTURE MAPPING
 
 	std::vector<SDL_Texture*> textures;
-	SDL_Texture* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex, * laddertex, *ladderclimbingtex,
+	SDL_Texture *pausetex,* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex, * laddertex, *ladderclimbingtex,
 		* Bg2tex, * Bg3tex, * Bg4tex, * fogtex, * bullettex, * bulletHittex,
 		* shoottex, * runShoottex, * slideshoottex, * jumpShoottex, *pronetex,*proneShoottex,
 		* enemytex, * enemyHittex, * enemydietex, * playerdeadtex;
@@ -115,6 +115,11 @@ struct Resources
 
 	void load(SDLState& state)
 	{
+
+		//MENU
+		pausetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\pause.png");
+
+
 		playerAnims.resize(11);
 		//IDLE ANIMATION
 		playerAnims[ANIM_PLAYER_IDLE] = Animation(8, 3.3f);
@@ -211,10 +216,6 @@ struct Resources
 
 	int main(int argc, char* argv[])
 	{
-		if (!TTF_Init())
-		{
-			cout << "TTF Init Failed: " << SDL_GetError() << endl;
-		}
 
 		SDLState state;
 		state.width = 1600;
@@ -288,8 +289,7 @@ struct Resources
 					}
 					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_START)
 					{
-						gs.paused = !gs.paused;
-						cout << "START PRESSED" << endl;
+						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_ESCAPE, true);
 					}
 					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH)
 					{
@@ -360,11 +360,13 @@ struct Resources
 			.h = 320.0f
 			};
 
+			
 			SDL_RenderTexture(state.renderer, res.BGtex, nullptr, &bgDst);
 			drawParallax(state.renderer, res.Bg4tex, gs.player().velocity.x, gs.bg4Scroll, 0.06f, deltaTime);
 			drawParallax(state.renderer, res.Bg3tex, gs.player().velocity.x, gs.bg3Scroll, 0.20f, deltaTime);
 			drawParallax(state.renderer, res.Bg2tex, gs.player().velocity.x, gs.bg2Scroll, 0.40f, deltaTime);
 			drawParallax(state.renderer, res.fogtex, gs.player().velocity.x, gs.bgfog, 0.0f, deltaTime);
+
 
 			//Draw Background Tiles
 			for (GameObject& obj : gs.backgroundTiles)
@@ -432,6 +434,19 @@ struct Resources
 
 			}
 
+			//PAUSE MENU IMAGE
+			if (gs.paused)
+			{
+				SDL_SetTextureAlphaMod(res.pausetex, 190);
+					SDL_FRect dst{
+						.x = (state.logW - 300)/2.0f,
+						.y = gs.pauseMenuY,
+						.w = 300,
+						.h = 300
+					};
+
+					SDL_RenderTexture(state.renderer, res.pausetex, nullptr, &dst);
+			}
 
 			//Show Debug Info
 			if (gs.debugMode) {
@@ -442,15 +457,13 @@ struct Resources
 
 
 
-
-
 			//Swap the Buffers and Present the Rendered Frame
 			SDL_RenderPresent(state.renderer);
 			prevTime = nowTime;
 
 		}
 
-		TTF_Quit();
+		
 
 		//Unloading
 		res.unload();
@@ -626,13 +639,40 @@ struct Resources
 
 	void update(const SDLState& state, GameState& gs, Resources& res, GameObject& obj, float deltaTime)
 	{
-		if (gs.paused) {
-
-			// Clear any held movement when pausing.
+		float targetY = (state.logH - 350.0f) / 2.0f;   // Final center position
+		if (gs.paused)
+		{
 			gs.player().velocity.x = 0.0f;
 			gs.player().velocity.y = 0.0f;
+
+			if (!gs.pauseClosing)
+			{
+				// Drop down.
+				if (gs.pauseMenuY < targetY)
+				{
+					gs.pauseMenuY += 50.0f * deltaTime;
+
+					if (gs.pauseMenuY > targetY)
+						gs.pauseMenuY = targetY;
+				}
+			}
+			else
+			{
+				// Slide back up.
+				gs.pauseMenuY -= 50.0f * deltaTime;
+
+				if (gs.pauseMenuY <= -300.0f)
+				{
+					gs.pauseMenuY = -300.0f;
+					gs.pauseClosing = false;
+					gs.paused = false;
+				}
+			}
+
 			return;
 		}
+
+
 
 		if (obj.type == ObjectType::player) {
 			obj.data.player.touchingLadder = false;
@@ -1378,18 +1418,29 @@ struct Resources
 		//=========== PAUSE GAME ==============
 		static bool escPressed = false;
 		bool PauseButton = state.keys[SDL_SCANCODE_ESCAPE];
-		if (state.keys[SDL_SCANCODE_ESCAPE])
+
+		if (state.gamepad)
 		{
-			if (!escPressed)
+			PauseButton |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_START);
+		}
+
+
+		if (PauseButton)
+		{
+			if (!gs.paused)
 			{
-				gs.paused = !gs.paused;
-				escPressed = true;
+				gs.paused = true;
+				gs.pauseMenuY = -300.0f;
+				gs.pauseClosing = false;
 			}
+			else
+			{
+				gs.pauseClosing = true;
+				escPressed = false;
+			}
+			escPressed = true;
 		}
-		else
-		{
-			escPressed = false;
-		}
+
 
 		const float JUMP_FORCE = -220.0f;
 
