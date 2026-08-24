@@ -45,8 +45,12 @@ const SDL_FRect PLAYER_PRONE_COLLIDER{
 
 struct GameState
 {
+	bool running = true;
 	bool paused = false;
 	bool pauseClosing = false;
+	float skullAlpha = 255.0f;
+	bool skullFadeOut = true;
+	int pauseSelection = 0;   // 0 = Continue, 1 = Quit
 	float pauseMenuY = -300.0f;
 	std::array<std::vector<GameObject>, 2> layers;
 	std::vector<GameObject> backgroundTiles;
@@ -98,7 +102,7 @@ struct Resources
 	//TEXTURE MAPPING
 
 	std::vector<SDL_Texture*> textures;
-	SDL_Texture *pausetex,* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex, * laddertex, *ladderclimbingtex,
+	SDL_Texture *pausetex,* menupointtex,* idletex, * runtex, * jumptex, * slidetex, * grasstex, * bricktex, * metaltex, * groundtex, * BGtex,*blurBGtex, * laddertex, *ladderclimbingtex,
 		* Bg2tex, * Bg3tex, * Bg4tex, * fogtex, * bullettex, * bulletHittex,
 		* shoottex, * runShoottex, * slideshoottex, * jumpShoottex, *pronetex,*proneShoottex,
 		* enemytex, * enemyHittex, * enemydietex, * playerdeadtex;
@@ -118,7 +122,8 @@ struct Resources
 
 		//MENU
 		pausetex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\pause.png");
-
+		menupointtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\backgrounds\\menupointer.png");
+		blurBGtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\backgrounds\\blurBG.png");
 
 		playerAnims.resize(11);
 		//IDLE ANIMATION
@@ -163,6 +168,7 @@ struct Resources
 		Bg2tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG2.png");
 		Bg3tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG3.png");
 		Bg4tex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\BG4.png");
+		fogtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\fog.png");
 		fogtex = loadTextures(state.renderer, "E:\\AyushS\\2DGameDev\\2D\\Assets\\Backgrounds\\fog.png");
 
 		//Shooting
@@ -243,10 +249,7 @@ struct Resources
 
 
 		//Start The Game Loop
-		bool running = true;
-
-
-		while (running)
+		while (gs.running)
 		{
 			uint64_t nowTime = SDL_GetTicks();
 			float deltaTime = (nowTime - prevTime) / 1000.0f; // Convert Form Milliseconds to Seconds
@@ -258,7 +261,7 @@ struct Resources
 				{
 				case SDL_EVENT_QUIT:
 				{
-					running = false;
+					gs.running = false;
 					break;
 				}
 
@@ -291,18 +294,23 @@ struct Resources
 					{
 						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_ESCAPE, true);
 					}
-					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH)
+
+					if (!gs.paused)
 					{
-						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_K, true);
-					}
-					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN)
-					{
-						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_S, true);
+						if (event.gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH)
+						{
+							handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_K, true);
+						}
+						if (event.gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN)
+						{
+							handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_S, true);
+						}
 					}
 					break;
 				}
 				case SDL_EVENT_GAMEPAD_BUTTON_UP:
 				{
+
 					if (event.gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN)
 					{
 						handlekeyinput(state, gs, gs.player(), SDL_SCANCODE_S, false);
@@ -365,7 +373,11 @@ struct Resources
 			drawParallax(state.renderer, res.Bg4tex, gs.player().velocity.x, gs.bg4Scroll, 0.06f, deltaTime);
 			drawParallax(state.renderer, res.Bg3tex, gs.player().velocity.x, gs.bg3Scroll, 0.20f, deltaTime);
 			drawParallax(state.renderer, res.Bg2tex, gs.player().velocity.x, gs.bg2Scroll, 0.40f, deltaTime);
+
+			//============== DRAW FOG ================
+			SDL_SetTextureAlphaMod(res.fogtex, 170);            // Adjust strength
 			drawParallax(state.renderer, res.fogtex, gs.player().velocity.x, gs.bgfog, 0.0f, deltaTime);
+
 
 
 			//Draw Background Tiles
@@ -404,8 +416,8 @@ struct Resources
 					}
 					if (obj.type == ObjectType::ladder)
 					{
-						RenderW = 431.0f;
-						RenderH = 485.0f;
+						RenderW = 128.0f;
+						RenderH = 128.0f;
 					}
 					drawObject(state, gs, obj, RenderW, RenderH, deltaTime);
 				}
@@ -434,7 +446,7 @@ struct Resources
 
 			}
 
-			//PAUSE MENU IMAGE
+			//PAUSE MENU IMAGE AND SELECTION
 			if (gs.paused)
 			{
 				SDL_SetTextureAlphaMod(res.pausetex, 190);
@@ -445,7 +457,19 @@ struct Resources
 						.h = 300
 					};
 
+					
 					SDL_RenderTexture(state.renderer, res.pausetex, nullptr, &dst);
+					float firstOptionY = 135.3f; //FIRST MENU LOCATION
+					float IconSpacing = 42.0f;     // SPACE BETWEEN TWO MENU OPTIONS
+					SDL_FRect cursor{
+						.x = (state.logW - 300) / 2.0f + 93,    //Offset Of X in Menu
+						.y = gs.pauseMenuY + firstOptionY + gs.pauseSelection * IconSpacing,
+						.w = 20.0f,
+						.h = 20.0f
+					};
+
+					SDL_SetTextureAlphaMod(res.menupointtex, (Uint8)gs.skullAlpha); // Dynamic Skull Alpha
+					SDL_RenderTexture(state.renderer, res.menupointtex, nullptr,&cursor);  //Set Image Texture As Pointer
 			}
 
 			//Show Debug Info
@@ -642,9 +666,55 @@ struct Resources
 		float targetY = (state.logH - 350.0f) / 2.0f;   // Final center position
 		if (gs.paused)
 		{
-			gs.player().velocity.x = 0.0f;
-			gs.player().velocity.y = 0.0f;
+			static bool menuHeld = false;
 
+			bool up = state.keys[SDL_SCANCODE_W];
+			bool down = state.keys[SDL_SCANCODE_S];
+			bool select = state.keys[SDL_SCANCODE_RETURN];
+			if (state.gamepad)
+			{
+				up |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_UP);
+				down |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+				select |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_SOUTH);
+			}
+			const int MENU_COUNT = 2;     //NUMBER OF MENU OPTIONS YOU HAVE
+			if (up && !menuHeld)
+			{
+				gs.pauseSelection--;
+
+				if (gs.pauseSelection < 0)
+					gs.pauseSelection = MENU_COUNT - 1; // Wrap to bottom.
+
+				menuHeld = true;
+			}
+			
+			if (down && !menuHeld)
+			{
+				gs.pauseSelection++;
+
+				if (gs.pauseSelection >= MENU_COUNT)
+					gs.pauseSelection = 0; // Wrap to top.
+
+				menuHeld = true;
+			}
+
+			// Reset when neither key is held
+			if (!up && !down)
+			{
+				menuHeld = false;
+			}
+
+			if (select) {
+				if (gs.pauseSelection == 0) {
+					gs.pauseClosing = true;
+				}
+				else{
+					gs.running = false;
+				}
+				return;
+			}
+
+			//============ MENU ANIMATION ================
 			if (!gs.pauseClosing)
 			{
 				// Drop down.
@@ -669,6 +739,29 @@ struct Resources
 				}
 			}
 
+			// ========== Skull Icon Blink ==========
+			const float blinkSpeed = 3.0f;
+			if (gs.skullFadeOut)
+			{
+				gs.skullAlpha -= blinkSpeed * deltaTime;
+				if (gs.skullAlpha <= 80.0f)
+				{
+					gs.skullAlpha = 80.0f;
+					gs.skullFadeOut = false;
+				}
+			}
+			else
+			{
+				gs.skullAlpha += blinkSpeed * deltaTime;
+				if (gs.skullAlpha >= 255.0f)
+				{
+					gs.skullAlpha = 255.0f;
+					gs.skullFadeOut = true;
+				}
+			}
+
+			gs.player().velocity.x = 0.0f;
+			gs.player().velocity.y = 0.0f;
 			return;
 		}
 
@@ -1161,7 +1254,7 @@ struct Resources
 				}
 				case ObjectType::ladder:
 				{
-					
+					objA.direction = objB.direction;
 					objA.data.player.touchingLadder = true;
 
 					if (objA.data.player.state != PlayerState::dead)
@@ -1273,7 +1366,7 @@ struct Resources
 			4 - Player
 			5 - Grass
 			6 - Enemy
-			7 - Ladder
+			7 - Right Mounted Ladder
 
 		*/
 
@@ -1386,11 +1479,11 @@ struct Resources
 							gs.layers[LAYER_IDX_CHARACTERS].push_back(enemy);
 							break;
 						}
-						case 7: //Ladder
+						case 7: //Right Mounted Ladder
 						{
 
 							GameObject ladder = createObject(r, c, res.laddertex, ladder.type = ObjectType::ladder);
-								
+							ladder.direction = 1;      //Player Facing Right
 							ladder.dynamic = false;
 							ladder.grounded = false;
 							//collider
@@ -1423,7 +1516,6 @@ struct Resources
 		{
 			PauseButton |= SDL_GetGamepadButton(state.gamepad, SDL_GAMEPAD_BUTTON_START);
 		}
-
 
 		if (PauseButton)
 		{
